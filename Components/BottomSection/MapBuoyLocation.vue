@@ -14,25 +14,42 @@ export default {
     let map = this.map = L.map("map", { zoomControl: false, maxZoom: 17 }).setView(buoyLatLng, 13);
     L.control.zoom({ position: 'topright' }).addTo(map);
 
-    // Base maps: OpenStreetMap toned down to the app's blues by default (see .map-tiles-soft),
-    // and the sea depth (bathymetry) as alternative
-    const lightMap = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    // Base maps: OpenStreetMap toned down to the app's blues (see .map-tiles-soft),
+    // alone or with the sea depth (bathymetry) coloured on top. zIndex keeps the layers in order when switching
+    const softMap = () => L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
       className: 'map-tiles-soft',
       maxZoom: 17,
-    }).addTo(map);
-    const bathymetry = L.tileLayer("https://tiles.emodnet-bathymetry.eu/2020/baselayer/web_mercator/{z}/{x}/{y}.png", {
-      attribution: '&copy; <a href="https://emodnet.ec.europa.eu/en/bathymetry" target="_blank">EMODnet Bathymetry</a>',
-      maxZoom: 17,
+      zIndex: 1,
     });
+    const lightMap = softMap().addTo(map);
+    // EMODnet's mean depth, with a blue ramp in the app's colours (shallow light, deep dark blue; land transparent)
+    const emodnetAttribution = '&copy; <a href="https://emodnet.ec.europa.eu/en/bathymetry" target="_blank">EMODnet Bathymetry</a>';
+    const depthStops = [[-2500, '#0f3062'], [-1000, '#1d5a8f'], [-300, '#2f7fb5'], [-100, '#5aa6d2'], [-40, '#8cc6e6'], [-15, '#bfe0f1'], [-1, '#e1f1f8']];
+    const depthStyle = `<StyledLayerDescriptor version="1.0.0" xmlns="http://www.opengis.net/sld"><NamedLayer><Name>emodnet:mean</Name>
+      <UserStyle><FeatureTypeStyle><Rule><RasterSymbolizer><ColorMap type="ramp">
+      ${depthStops.map(([depth, color]) => `<ColorMapEntry color="${color}" quantity="${depth}"/>`).join('')}
+      <ColorMapEntry color="#e1f1f8" quantity="0" opacity="0"/>
+      </ColorMap></RasterSymbolizer></Rule></FeatureTypeStyle></UserStyle></NamedLayer></StyledLayerDescriptor>`;
+    const depth = L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", {
+      layers: 'emodnet:mean', sld_body: depthStyle, format: 'image/png', transparent: true, version: '1.3.0',
+      opacity: 0.9, zIndex: 2, attribution: emodnetAttribution,
+    });
+    const bathymetry = L.layerGroup([softMap(), depth]);
+    // Depth contours (isobaths), labelled in metres
+    const isobaths = L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", {
+      layers: 'emodnet:contours', format: 'image/png', transparent: true, version: '1.3.0',
+      zIndex: 3, attribution: emodnetAttribution,
+    }).addTo(map);
     // Nautical marks on top: buoys, beacons, lighthouses, channels
     const seamarks = L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openseamap.org" target="_blank">OpenSeaMap</a>',
       maxZoom: 17,
+      zIndex: 4,
     }).addTo(map);
     L.control.layers(
       { [this.$i18n.t("Light map")]: lightMap, [this.$i18n.t("Bathymetry")]: bathymetry },
-      { [this.$i18n.t("Nautical marks")]: seamarks },
+      { [this.$i18n.t("Isobaths")]: isobaths, [this.$i18n.t("Nautical marks")]: seamarks },
       { position: 'topright' }
     ).addTo(map);
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);

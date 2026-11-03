@@ -120,6 +120,7 @@ export default ca = {
   "Bathymetry": "Batimetria",
   "Light map": "Mapa clar",
   "Nautical marks": "Senyalització nàutica",
+  "Isobaths": "Isòbates",
   "Last data": "Última dada",
   "See observations": "Veure observacions",
   "Loading": "Carregant",

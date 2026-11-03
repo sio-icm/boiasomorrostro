@@ -121,6 +121,7 @@ export default es = {
   "Bathymetry": "Batimetría",
   "Light map": "Mapa claro",
   "Nautical marks": "Señalización náutica",
+  "Isobaths": "Isóbatas",
   "Last data": "Último dato",
   "See observations": "Ver observaciones",
   "Loading": "Cargando",

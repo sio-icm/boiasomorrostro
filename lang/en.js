@@ -119,6 +119,7 @@ export default en = {
   "Bathymetry": "Bathymetry",
   "Light map": "Light map",
   "Nautical marks": "Nautical marks",
+  "Isobaths": "Isobaths",
   "Last data": "Last data",
   "See observations": "See observations",
   "Loading": "Loading",
