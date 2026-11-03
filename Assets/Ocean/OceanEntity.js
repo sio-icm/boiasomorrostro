@@ -66,6 +66,10 @@ class OceanEntity {
     videoEl.play();
     let normalTexture = new THREE.VideoTexture(videoEl);
     normalTexture.wrapS = normalTexture.wrapT = THREE.RepeatWrapping;
+    // Mipmaps and anisotropic filtering: without them the ripples alias into horizontal stripes (moiré) in the distance
+    normalTexture.generateMipmaps = true;
+    normalTexture.minFilter = THREE.LinearMipmapLinearFilter;
+    normalTexture.anisotropy = 8;
     normalTexture.encoding = THREE.linearEncoding; // Normal maps should not have a color correction https://threejs.org/docs/#manual/en/introduction/Color-management
     // document.body.append(videoEl);
     // videoEl.style.position = 'absolute';
