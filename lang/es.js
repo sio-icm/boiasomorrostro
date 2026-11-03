@@ -117,6 +117,15 @@ export default es = {
   "Forecast": "Predicción",
   "Observations": "Observaciones",
 
+  // Map
+  "Bathymetry": "Batimetría",
+  "Light map": "Mapa claro",
+  "Nautical marks": "Señalización náutica",
+  "Last data": "Último dato",
+  "See observations": "Ver observaciones",
+  "Loading": "Cargando",
+  "No data": "Sin datos",
+
   timeAgo: {
     now: "Ahora mismo",
     minutes: "Hace {n} min",

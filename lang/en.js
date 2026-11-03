@@ -115,6 +115,15 @@ export default en = {
   "Forecast": "Forecast",
   "Observations": "Observations",
 
+  // Map
+  "Bathymetry": "Bathymetry",
+  "Light map": "Light map",
+  "Nautical marks": "Nautical marks",
+  "Last data": "Last data",
+  "See observations": "See observations",
+  "Loading": "Loading",
+  "No data": "No data",
+
   timeAgo: {
     now: "Just now",
     minutes: "{n} min ago",

@@ -116,6 +116,15 @@ export default ca = {
   "Forecast": "Predicció",
   "Observations": "Observacions",
 
+  // Map
+  "Bathymetry": "Batimetria",
+  "Light map": "Mapa clar",
+  "Nautical marks": "Senyalització nàutica",
+  "Last data": "Última dada",
+  "See observations": "Veure observacions",
+  "Loading": "Carregant",
+  "No data": "Sense dades",
+
   timeAgo: {
     now: "Ara mateix",
     minutes: "Fa {n} min",
