@@ -22,6 +22,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class Handler(http.server.SimpleHTTPRequestHandler):
 
+  def end_headers(self):
+    # Always serve fresh files, so edits show up on reload (ES modules are cached aggressively)
+    self.send_header('Cache-Control', 'no-store')
+    super().end_headers()
+
   def do_GET(self):
     parsed = urllib.parse.urlparse(self.path)
     if parsed.path.rstrip('/') == '/proxy':
