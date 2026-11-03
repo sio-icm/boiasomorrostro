@@ -93,6 +93,7 @@ class OceanEntity {
       u_time: { value: this.time },
       u_fogUnderwaterColor: { value: new THREE.Vector3(scene.fog.color.r, scene.fog.color.g, scene.fog.color.b)},
       u_fogDensity: {value: scene.fog.density},
+      u_sunDirection: { value: new THREE.Vector3(-0.81, 0.22, -0.58) }, // Low sun towards the skyline, so its glint shows in the default view
       u_paramsTexture: {value: paramsTexture},
       u_imgSize: {value: new THREE.Vector2(imgSize, imgSize)},
       u_steepnessFactor: { value: 0.2 },
