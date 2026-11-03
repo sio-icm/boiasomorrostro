@@ -7,7 +7,8 @@ import Source from './Source.js';
 // metadata/discovery only), scoped to buoyId so this app - dedicated to one
 // buoy - doesn't pull data for every other buoy the server happens to host.
 
-const PROXY_URL = 'https://api.icatmar.cat/proxy/';
+// On localhost, use dev_server.py's proxy (the ICATMAR one doesn't allow localhost)
+const PROXY_URL = ['localhost', '127.0.0.1'].includes(location.hostname) ? '/proxy/' : 'https://api.icatmar.cat/proxy/';
 const DAYS_LOADED = 3;
 // ERDDAP columns that are coordinates/dimensions, not sensor readings - never
 // auto-fetched as a data variable in their own right (a `depth` column is
