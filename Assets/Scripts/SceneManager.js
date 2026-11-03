@@ -345,6 +345,39 @@ class SceneManager{
 
 
 
+  // Compass bearing the camera looks at, in degrees (0 north, 90 east). In the scene, north is -z and east +x
+  getCameraBearing = function(){
+    const target = this.controls.target, position = this.camera.position;
+    return (Math.atan2(target.x - position.x, position.z - target.z) * 180 / Math.PI + 360) % 360;
+  }
+
+  // Horizontal field of view of the camera, in degrees
+  getCameraHorizontalFOV = function(){
+    const verticalFOV = this.camera.fov * Math.PI / 180;
+    return 2 * Math.atan(Math.tan(verticalFOV / 2) * this.camera.aspect) * 180 / Math.PI;
+  }
+
+  // Turns the camera around its target to look at a compass bearing, keeping its distance and height
+  faceBearing = function(bearing){
+    const target = this.controls.target, position = this.camera.position;
+    const horizontalDistance = Math.hypot(position.x - target.x, position.z - target.z);
+    const start = this.getCameraBearing();
+    const turn = ((bearing - start + 540) % 360) - 180; // Shortest way round
+    const state = { bearing: start };
+    new TWEEN.Tween(state)
+      .to({ bearing: start + turn }, 1500)
+      .easing(TWEEN.Easing.Cubic.InOut)
+      .onUpdate(() => {
+        const angle = state.bearing * Math.PI / 180;
+        position.x = target.x - horizontalDistance * Math.sin(angle);
+        position.z = target.z + horizontalDistance * Math.cos(angle);
+        this.controls.update();
+      })
+      .start();
+  }
+
+
+
   // Show/Hide FPS
   showHideFPS = function(){
     let stats = this.stats;

@@ -21,7 +21,8 @@ export default {
     
   },
   mounted() {
-    this.sceneManager = new window.SceneManager(this.$refs.canvas3D);
+    // Also global, for the map's view cone (see MapBuoyLocation.vue)
+    this.sceneManager = window.sceneManager = new window.SceneManager(this.$refs.canvas3D);
     this.sceneManager.startRender();
     this.sceneManager.windowWasResized();
 

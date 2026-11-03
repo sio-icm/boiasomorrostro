@@ -97,6 +97,21 @@ export default {
     this.buoyMarker.openPopup();
     this.loadBuoyData();
 
+    // View cone: where the 3D camera is looking. Follows the camera, and clicking on the map turns
+    // the camera towards that point
+    this.viewCone = L.polygon([], {
+      interactive: false, color: '#0f3062', weight: 1, opacity: 0.5, dashArray: '4 4', fillOpacity: 0.15,
+    }).addTo(map);
+    this.updateViewCone();
+    window.eventBus.on('Canvas3D_cameraChange', this.updateViewCone);
+    map.on('click', (e) => {
+      const sceneManager = window.sceneManager;
+      if (!sceneManager) return;
+      const north = (e.latlng.lat - buoyLatLng[0]) * 111320;
+      const east = (e.latlng.lng - buoyLatLng[1]) * 111320 * Math.cos(buoyLatLng[0] * Math.PI / 180);
+      sceneManager.faceBearing(Math.atan2(east, north) * 180 / Math.PI);
+    });
+
     // Add bboxes
     if (window.AISManager) {
       window.AISManager.bboxes.forEach((bbox) => {
@@ -137,6 +152,7 @@ export default {
     }
     // Unhook event listener
     window.eventBus.off('AISManager_receivedAISMessage', this.handleAISMessage);
+    window.eventBus.off('Canvas3D_cameraChange', this.updateViewCone);
     window.removeEventListener('resize', this.invalidateMapSize);
     // Stops the wind animation along with everything else on the map
     this.map.remove();
@@ -144,6 +160,26 @@ export default {
 
 
   methods: {
+    // VIEW CONE
+    // Sector from the buoy (the camera is a few metres from it) towards where the 3D camera looks,
+    // as wide as its horizontal field of view and 4 km long (about the distance to the coast)
+    updateViewCone() {
+      const sceneManager = window.sceneManager;
+      if (!sceneManager || !this.viewCone) return;
+      const bearing = sceneManager.getCameraBearing();
+      const halfWidth = Math.min(sceneManager.getCameraHorizontalFOV(), 170) / 2;
+      const [lat, lng] = [window.LATITUDE, window.LONGITUDE];
+      const length = 4000; // m
+      const points = [[lat, lng]];
+      for (let step = 0; step <= 12; step++) {
+        const angle = (bearing - halfWidth + halfWidth * 2 * step / 12) * Math.PI / 180;
+        points.push([
+          lat + length * Math.cos(angle) / 111320,
+          lng + length * Math.sin(angle) / (111320 * Math.cos(lat * Math.PI / 180)),
+        ]);
+      }
+      this.viewCone.setLatLngs(points);
+    },
     // FORECASTS
     // Downloads a forecast (once) and shows it with the time/legend control
     async showForecast(name) {
