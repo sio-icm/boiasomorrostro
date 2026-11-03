@@ -47,18 +47,36 @@ export default {
       maxZoom: 17,
       zIndex: 4,
     }).addTo(map);
-    // Wind forecast with animated particles. An empty group stands in for it in the layer list,
-    // and the forecast is only downloaded once it is switched on (see showWind)
-    const wind = this.windGroup = L.layerGroup();
+    // Forecasts: wind and currents with animated particles, sea temperature from Copernicus.
+    // An empty group stands in for each one in the layer list, and its data is only
+    // downloaded once it is switched on (see showForecast). They share one time control
+    this.forecasts = {
+      wind: { group: L.layerGroup(), label: "Wind forecast" },
+      currents: { group: L.layerGroup(), label: "Currents forecast" },
+      seaTemperature: { group: L.layerGroup(), label: "Sea temperature forecast" },
+    };
+    this.forecastTimes = Array.from({ length: 48 }, (_, hour) => {
+      const time = new Date();
+      time.setUTCMinutes(0, 0, 0);
+      time.setUTCHours(time.getUTCHours() + hour);
+      return time;
+    });
+    this.forecastHour = 0;
+    this.forecastControl = this.createForecastControl();
+    const overlays = {};
+    Object.values(this.forecasts).forEach(forecast => overlays[this.$i18n.t(forecast.label)] = forecast.group);
+    overlays[this.$i18n.t("Isobaths")] = isobaths;
+    overlays[this.$i18n.t("Nautical marks")] = seamarks;
     L.control.layers(
       { [this.$i18n.t("Light map")]: lightMap, [this.$i18n.t("Bathymetry")]: bathymetry },
-      { [this.$i18n.t("Wind forecast")]: wind, [this.$i18n.t("Isobaths")]: isobaths, [this.$i18n.t("Nautical marks")]: seamarks },
+      overlays,
       { position: 'topright' }
     ).addTo(map);
-    // The layer control fires overlayadd for this first addTo too
-    map.on('overlayadd', (e) => { if (e.layer === wind) this.showWind(); });
-    map.on('overlayremove', (e) => { if (e.layer === wind) this.hideWind(); });
-    wind.addTo(map);
+    const forecastName = (layer) => Object.keys(this.forecasts).find(name => this.forecasts[name].group === layer);
+    // The layer control fires overlayadd for the first addTo below too
+    map.on('overlayadd', (e) => { const name = forecastName(e.layer); if (name) this.showForecast(name); });
+    map.on('overlayremove', (e) => { const name = forecastName(e.layer); if (name) this.updateForecastControl(); });
+    this.forecasts.wind.group.addTo(map);
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
     // Buoy: yellow buoy with a pulsing halo and the wind arrow around it
@@ -126,58 +144,125 @@ export default {
 
 
   methods: {
-    // WIND FORECAST
-    // Downloads the forecast (once), adds the particles and the hour/legend control
-    async showWind() {
+    // FORECASTS
+    // Downloads a forecast (once) and shows it with the time/legend control
+    async showForecast(name) {
+      const forecast = this.forecasts[name];
       // Loaded only once, even if switched on again while still loading
-      this.windLoading ??= new window.WindField().load().then(field => {
-        this.windField = field;
-        this.windLayer = new window.WindParticlesLayer(field);
-        this.windControl = this.createWindControl(window.WIND_SPEED_COLORS);
-      });
+      forecast.loading ??= this.createForecastLayer(name).then(layer => forecast.layer = layer);
       try {
-        await this.windLoading;
+        await forecast.loading;
       } catch (error) {
-        console.error('Could not load the wind forecast', error);
-        this.windLoading = undefined;
+        console.error('Could not load the forecast: ' + name, error);
+        forecast.loading = undefined;
+        this.map.removeLayer(forecast.group);
         return;
       }
       // It may have been switched off while loading
-      if (!this.map.hasLayer(this.windGroup) || this.windControl.getContainer()?.parentNode) return;
-      this.windControl.addTo(this.map);
-      this.setWindHour(this.windHour ?? this.windField.hourIndex(new Date()));
-      this.windGroup.addLayer(this.windLayer);
+      if (!this.map.hasLayer(forecast.group)) return;
+      if (!forecast.group.hasLayer(forecast.layer)) forecast.group.addLayer(forecast.layer);
+      this.setForecastHour(this.forecastHour);
     },
-    hideWind() {
-      this.windControl?.remove();
+    async createForecastLayer(name) {
+      const scales = window.PARTICLES_COLOR_SCALES;
+      if (name === 'wind' || name === 'currents') {
+        const field = await new window.ForecastField(name).load();
+        const options = name === 'wind'
+          ? { colors: scales.wind, speedFactor: 0.18, className: 'map-field-wind' }
+          // Currents are ~50 times slower than the wind: faster particles, and in blue so they don't mix with the wind's
+          : { colors: scales.currents, speedFactor: 6, density: 450, className: 'map-field-currents', seaOnly: true, particleColor: 'rgba(15, 48, 98, 0.75)' };
+        const layer = new window.ParticlesLayer(field, options);
+        layer.field = field;
+        return layer;
+      }
+      // Sea surface temperature: hourly forecast of the Copernicus Mediterranean model (4.2 km), drawn by
+      // their WMTS server with a colour range centred on the temperature at the buoy
+      const range = this.seaTemperatureRange = await this.loadSeaTemperatureRange();
+      return L.tileLayer('https://wmts.marine.copernicus.eu/teroWmts?service=WMTS&version=1.0.0&request=GetTile' +
+        '&layer=MEDSEA_ANALYSISFORECAST_PHY_006_013/cmems_mod_med_phy-tem_anfc_4.2km-2D_PT1H-m_202511/thetao' +
+        '&style=cmap:thermal,range:{min}/{max}&format=image/png&tilematrixset=EPSG:3857&tilematrix={z}&tilerow={y}&tilecol={x}&time={time}', {
+        min: range[0], max: range[1], time: this.forecastTimes[0].toISOString(),
+        // The model is 4.2 km: low-resolution tiles enlarged by the browser look smooth instead of blocky
+        maxNativeZoom: 6,
+        opacity: 0.7, zIndex: 2,
+        attribution: '&copy; <a href="https://doi.org/10.25423/CMCC/MEDSEA_ANALYSISFORECAST_PHY_006_013_EAS8" target="_blank">Copernicus Marine Service</a>',
+      });
     },
-    setWindHour(hour) {
-      this.windHour = hour;
-      this.windLayer.setHour(hour);
-      const time = this.windField.times[hour];
-      const label = time.toLocaleString(this.$i18n.locale, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      const container = this.windControl.getContainer();
-      container.querySelector('.map-wind-time').textContent = label;
-      container.querySelector('input').value = hour;
+    // Colour range for the sea temperature: forecast temperature at the buoy ± 3 ºC (one Open-Meteo point),
+    // or the usual temperature of the month near Barcelona if it cannot be loaded
+    async loadSeaTemperatureRange() {
+      let center;
+      try {
+        const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${window.LATITUDE}&longitude=${window.LONGITUDE}&current=sea_surface_temperature`;
+        center = (await (await window.FetchManager.fetch(url, 60)).json()).current.sea_surface_temperature;
+      } catch (error) {
+        console.error('Could not load the sea temperature at the buoy', error);
+      }
+      if (typeof center !== 'number') {
+        const monthly = [13.5, 13, 13.5, 15, 18, 22, 25, 26, 24.5, 21.5, 18, 15];
+        center = monthly[new Date().getMonth()];
+      }
+      return [Math.round(center - 3), Math.round(center + 3)];
     },
-    // Bottom-left box: forecast hour (slider) and wind speed scale
-    createWindControl(speedColors) {
+    setForecastHour(hour) {
+      this.forecastHour = hour;
+      const time = this.forecastTimes[hour];
+      Object.entries(this.forecasts).forEach(([name, forecast]) => {
+        if (!forecast.layer || !this.map.hasLayer(forecast.group)) return;
+        if (forecast.layer.field) forecast.layer.setHour(forecast.layer.field.hourIndex(time));
+        else if (forecast.layer.options.time !== time.toISOString()) {
+          forecast.layer.options.time = time.toISOString();
+          forecast.layer.redraw();
+        }
+      });
+      this.updateForecastControl();
+    },
+    // Bottom-left box: forecast hour (slider) and the scale of each visible forecast
+    createForecastControl() {
       const control = L.control({ position: 'bottomleft' });
       control.onAdd = () => {
-        const container = L.DomUtil.create('div', 'map-wind-control');
-        const gradient = speedColors.map(([speed, rgb]) => `rgb(${rgb}) ${speed / 22 * 100}%`).join(', ');
+        const container = L.DomUtil.create('div', 'map-forecast-control');
         container.innerHTML = `
-          <div class="map-wind-header">${this.$i18n.t("Wind forecast")} <b class="map-wind-time"></b></div>
-          <input type="range" min="0" max="${this.windField.times.length - 1}" step="1">
-          <div class="map-wind-legend" style="background: linear-gradient(to right, ${gradient})"></div>
-          <div class="map-wind-scale"><b>0</b><b>5</b><b>10</b><b>15</b><b>20 m/s</b></div>
-          <div class="map-wind-source">Open-Meteo · Météo-France</div>`;
+          <div class="map-forecast-header">${this.$i18n.t("Forecast")} <b class="map-forecast-time"></b></div>
+          <input type="range" min="0" max="${this.forecastTimes.length - 1}" step="1">
+          <div class="map-forecast-legends"></div>`;
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
-        container.querySelector('input').addEventListener('input', (e) => this.setWindHour(parseInt(e.target.value)));
+        container.querySelector('input').addEventListener('input', (e) => this.setForecastHour(parseInt(e.target.value)));
         return container;
       };
       return control;
+    },
+    // Shows the control with the legends of the visible forecasts, or hides it when there are none
+    updateForecastControl() {
+      const visible = Object.keys(this.forecasts).filter(name => this.forecasts[name].layer && this.map.hasLayer(this.forecasts[name].group));
+      if (visible.length === 0) {
+        this.forecastControl.remove();
+        return;
+      }
+      if (!this.forecastControl.getContainer()?.parentNode) this.forecastControl.addTo(this.map);
+      const container = this.forecastControl.getContainer();
+      const time = this.forecastTimes[this.forecastHour];
+      container.querySelector('.map-forecast-time').textContent =
+        time.toLocaleString(this.$i18n.locale, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      container.querySelector('input').value = this.forecastHour;
+
+      const scales = window.PARTICLES_COLOR_SCALES;
+      const gradient = (stops, max) => stops.map(([value, rgb]) => `rgb(${rgb}) ${value / max * 100}%`).join(', ');
+      const legend = (title, background, ticks, source) => `
+        <div class="map-forecast-legend-title">${this.$i18n.t(title)} <i>${source}</i></div>
+        <div class="map-forecast-legend" style="background: linear-gradient(to right, ${background})"></div>
+        <div class="map-forecast-scale">${ticks.map(tick => `<b>${tick}</b>`).join('')}</div>`;
+      // cmocean "thermal", the colour map Copernicus draws the temperature with
+      const thermal = '#042333, #2c3395, #744992, #b15f82, #eb7958, #fbb43d, #e8fa5b';
+      const range = this.seaTemperatureRange || [0, 0];
+      const legends = {
+        wind: () => legend("Wind", gradient(scales.wind, 22), ['0', '5', '10', '15', '20 m/s'], 'Open-Meteo · Météo-France'),
+        currents: () => legend("Currents", gradient(scales.currents, 0.8), ['0', '20', '40', '60', '80 cm/s'], 'Open-Meteo · Copernicus'),
+        seaTemperature: () => legend("Sea temperature", thermal,
+          [range[0], (range[0] + range[1]) / 2, range[1] + ' ºC'], 'Copernicus'),
+      };
+      container.querySelector('.map-forecast-legends').innerHTML = visible.map(name => legends[name]()).join('');
     },
     // BUOY CARD
     // Fills the card as soon as each sensor is loaded, without waiting for the whole buoy
@@ -356,45 +441,60 @@ export default {
   filter: grayscale(1) sepia(0.25) hue-rotate(170deg) saturate(1.6) brightness(1.06) contrast(0.92);
 }
 
-/* WIND FORECAST (see Assets/Map/WindParticlesLayer.js) */
-.map-wind-colors {
+/* FORECASTS (see Assets/Map/ParticlesLayer.js) */
+/* Speed colour fields, faint so the map shows through */
+.map-field-colors.map-field-wind {
   opacity: 0.28;
 }
-.map-wind-control {
+.map-field-colors.map-field-currents {
+  opacity: 0.35;
+}
+.map-forecast-control {
   background: rgba(255, 255, 255, 0.92);
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   padding: 6px 10px;
-  width: 210px;
+  width: 220px;
   color: var(--darkBlue);
   font-size: 0.72rem;
 }
-.map-wind-header {
+.map-forecast-header {
   display: flex;
   justify-content: space-between;
   gap: 6px;
 }
-.map-wind-control input {
+.map-forecast-control input {
   width: 100%;
   accent-color: var(--darkBlue);
   margin: 2px 0;
 }
-.map-wind-legend {
+.map-forecast-legend-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.68rem;
+}
+.map-forecast-legend-title i {
+  font-style: normal;
+  font-size: 0.58rem;
+  opacity: 0.6;
+  align-self: end;
+}
+.map-forecast-legend-title, .map-forecast-legend-title i {
+  white-space: nowrap;
+}
+.map-forecast-legend {
   height: 6px;
   border-radius: 3px;
 }
-.map-wind-scale {
+.map-forecast-scale {
   display: flex;
   justify-content: space-between;
-  font-size: 0.65rem;
+  font-size: 0.62rem;
 }
-.map-wind-scale b {
+.map-forecast-scale b {
   font-weight: normal;
-}
-.map-wind-source {
-  font-size: 0.6rem;
-  opacity: 0.6;
-  text-align: right;
 }
 
 /* BUOY MARKER */
