@@ -120,10 +120,10 @@ class SceneManager{
     this.somorrostroBuoy = new SomorrostroBuoyEntity(scene);
 
     // Flag
-    this.flag = new FlagEntity(scene, () => {
-      this.flag.root.position.y = -1;
-      this.loadFlagWind();
-    });
+    // this.flag = new FlagEntity(scene, () => {
+    //   this.flag.root.position.y = -1;
+    //   this.loadFlagWind();
+    // });
 
 
     // Mooring
