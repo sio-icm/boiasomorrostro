@@ -251,6 +251,7 @@ export const OceanProjectedGridFragShader = /* glsl */`
 
   uniform sampler2D u_normalTexture;
   uniform lowp float u_time; // Same precision as in the vertex shader (required for shared uniforms)
+  uniform lowp float u_steepnessFactor; // Grows with the wind (see Canvas3D.vue), drives the amount of foam
   uniform vec3 u_sunDirection;
   // Fog
   uniform vec3 u_fogUnderwaterColor;
@@ -268,6 +269,24 @@ export const OceanProjectedGridFragShader = /* glsl */`
   // https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
   vec3 acesToneMapping (vec3 color) {
       return clamp((color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14), 0.0, 1.0);
+  }
+
+  // Value noise, for the foam pattern. Hash without sine, which keeps precision in mediump
+  // https://www.shadertoy.com/view/4djSRW
+  float hash (vec2 p) {
+      vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+      p3 += dot(p3, p3.yzx + 33.33);
+      return fract((p3.x + p3.y) * p3.z);
+  }
+  float valueNoise (vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+                 mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+  }
+  float foamNoise (vec2 p) {
+      return 0.6 * valueNoise(p) + 0.3 * valueNoise(p * 2.7 + 5.2) + 0.1 * valueNoise(p * 7.1 + 1.7);
   }
 
 
@@ -358,6 +377,20 @@ export const OceanProjectedGridFragShader = /* glsl */`
     vec3 specularColor = sunColor * (6.0 * pow(nDotH, 600.0) + 0.25 * pow(nDotH, 60.0));
 
     vec3 color = mix(waterColor, skyColor * 1.3, fresnel) + specularColor;
+
+    // Foam on the tips of the highest and steepest crests, more of it with more wind.
+    // Drawn as lace (noise ridges) that fills in as coverage grows, and faded with distance to avoid flickering
+    float slope = 1.0 - geoNormal.y;
+    float foamMask = smoothstep(0.16, 0.34, v_height) * (0.4 + 0.6 * smoothstep(0.03, 0.2, slope));
+    float windFoam = smoothstep(0.06, 0.3, u_steepnessFactor);
+    float breaking = smoothstep(0.3, 0.75, valueNoise(v_WorldPosition.xz * 0.12)); // only some stretches of each crest break
+    float coverage = foamMask * breaking * (0.3 + 0.7 * windFoam);
+    float laceNoise = 0.7 * foamNoise(v_WorldPosition.xz * 3.0) + 0.3 * foamNoise(v_WorldPosition.xz * 9.0 + 3.1);
+    float lace = 1.0 - abs(laceNoise * 2.0 - 1.0); // 1 on the noise ridges
+    float foam = smoothstep(1.0 - coverage, 1.0 - coverage + 0.12, lace);
+    foam *= 1.0 - smoothstep(40.0, 120.0, distance(v_WorldPosition, cameraPosition));
+    vec3 foamColor = vec3(0.92, 0.96, 0.98) * (0.75 + 0.35 * sunDiffuse);
+    color = mix(color, foamColor, foam * 0.8);
 
     color = acesToneMapping(color);
 
