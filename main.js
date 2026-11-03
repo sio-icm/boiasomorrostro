@@ -43,6 +43,13 @@ window.WMTSTileManager = new WMTSTileManagerClass();
 import AISManagerClass from './Assets/Scripts/AIS/AISManager.js';
 window.AISManager = new AISManagerClass();
 
+// Wind forecast and its animated particles, for the map (see MapBuoyLocation.vue)
+import { WindField } from './Assets/Map/WindField.js';
+import { WindParticlesLayer, SPEED_COLORS } from './Assets/Map/WindParticlesLayer.js';
+window.WindField = WindField;
+window.WindParticlesLayer = WindParticlesLayer;
+window.WIND_SPEED_COLORS = SPEED_COLORS;
+
 // GUI and data
 import GUIManager from './Assets/Scripts/GUIManager.js';
 import FetchManager from './Assets/Scripts/data/FetchManager.js';

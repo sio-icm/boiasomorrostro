@@ -47,11 +47,18 @@ export default {
       maxZoom: 17,
       zIndex: 4,
     }).addTo(map);
+    // Wind forecast with animated particles. An empty group stands in for it in the layer list,
+    // and the forecast is only downloaded once it is switched on (see showWind)
+    const wind = this.windGroup = L.layerGroup();
     L.control.layers(
       { [this.$i18n.t("Light map")]: lightMap, [this.$i18n.t("Bathymetry")]: bathymetry },
-      { [this.$i18n.t("Isobaths")]: isobaths, [this.$i18n.t("Nautical marks")]: seamarks },
+      { [this.$i18n.t("Wind forecast")]: wind, [this.$i18n.t("Isobaths")]: isobaths, [this.$i18n.t("Nautical marks")]: seamarks },
       { position: 'topright' }
     ).addTo(map);
+    // The layer control fires overlayadd for this first addTo too
+    map.on('overlayadd', (e) => { if (e.layer === wind) this.showWind(); });
+    map.on('overlayremove', (e) => { if (e.layer === wind) this.hideWind(); });
+    wind.addTo(map);
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
     // Buoy: yellow buoy with a pulsing halo and the wind arrow around it
@@ -113,10 +120,65 @@ export default {
     // Unhook event listener
     window.eventBus.off('AISManager_receivedAISMessage', this.handleAISMessage);
     window.removeEventListener('resize', this.invalidateMapSize);
+    // Stops the wind animation along with everything else on the map
+    this.map.remove();
   },
 
 
   methods: {
+    // WIND FORECAST
+    // Downloads the forecast (once), adds the particles and the hour/legend control
+    async showWind() {
+      // Loaded only once, even if switched on again while still loading
+      this.windLoading ??= new window.WindField().load().then(field => {
+        this.windField = field;
+        this.windLayer = new window.WindParticlesLayer(field);
+        this.windControl = this.createWindControl(window.WIND_SPEED_COLORS);
+      });
+      try {
+        await this.windLoading;
+      } catch (error) {
+        console.error('Could not load the wind forecast', error);
+        this.windLoading = undefined;
+        return;
+      }
+      // It may have been switched off while loading
+      if (!this.map.hasLayer(this.windGroup) || this.windControl.getContainer()?.parentNode) return;
+      this.windControl.addTo(this.map);
+      this.setWindHour(this.windHour ?? this.windField.hourIndex(new Date()));
+      this.windGroup.addLayer(this.windLayer);
+    },
+    hideWind() {
+      this.windControl?.remove();
+    },
+    setWindHour(hour) {
+      this.windHour = hour;
+      this.windLayer.setHour(hour);
+      const time = this.windField.times[hour];
+      const label = time.toLocaleString(this.$i18n.locale, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const container = this.windControl.getContainer();
+      container.querySelector('.map-wind-time').textContent = label;
+      container.querySelector('input').value = hour;
+    },
+    // Bottom-left box: forecast hour (slider) and wind speed scale
+    createWindControl(speedColors) {
+      const control = L.control({ position: 'bottomleft' });
+      control.onAdd = () => {
+        const container = L.DomUtil.create('div', 'map-wind-control');
+        const gradient = speedColors.map(([speed, rgb]) => `rgb(${rgb}) ${speed / 22 * 100}%`).join(', ');
+        container.innerHTML = `
+          <div class="map-wind-header">${this.$i18n.t("Wind forecast")} <b class="map-wind-time"></b></div>
+          <input type="range" min="0" max="${this.windField.times.length - 1}" step="1">
+          <div class="map-wind-legend" style="background: linear-gradient(to right, ${gradient})"></div>
+          <div class="map-wind-scale"><b>0</b><b>5</b><b>10</b><b>15</b><b>20 m/s</b></div>
+          <div class="map-wind-source">Open-Meteo · Météo-France</div>`;
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
+        container.querySelector('input').addEventListener('input', (e) => this.setWindHour(parseInt(e.target.value)));
+        return container;
+      };
+      return control;
+    },
     // BUOY CARD
     // Fills the card as soon as each sensor is loaded, without waiting for the whole buoy
     loadBuoyData() {
@@ -292,6 +354,47 @@ export default {
 /* BASE MAP: monochrome OpenStreetMap tinted blue, so the buoy and the data stand out */
 .map-tiles-soft {
   filter: grayscale(1) sepia(0.25) hue-rotate(170deg) saturate(1.6) brightness(1.06) contrast(0.92);
+}
+
+/* WIND FORECAST (see Assets/Map/WindParticlesLayer.js) */
+.map-wind-colors {
+  opacity: 0.28;
+}
+.map-wind-control {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  padding: 6px 10px;
+  width: 210px;
+  color: var(--darkBlue);
+  font-size: 0.72rem;
+}
+.map-wind-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.map-wind-control input {
+  width: 100%;
+  accent-color: var(--darkBlue);
+  margin: 2px 0;
+}
+.map-wind-legend {
+  height: 6px;
+  border-radius: 3px;
+}
+.map-wind-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+}
+.map-wind-scale b {
+  font-weight: normal;
+}
+.map-wind-source {
+  font-size: 0.6rem;
+  opacity: 0.6;
+  text-align: right;
 }
 
 /* BUOY MARKER */

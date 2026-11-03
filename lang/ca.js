@@ -121,6 +121,7 @@ export default ca = {
   "Light map": "Mapa clar",
   "Nautical marks": "Senyalització nàutica",
   "Isobaths": "Isòbates",
+  "Wind forecast": "Vent (predicció)",
   "Last data": "Última dada",
   "See observations": "Veure observacions",
   "Loading": "Carregant",

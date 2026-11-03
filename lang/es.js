@@ -122,6 +122,7 @@ export default es = {
   "Light map": "Mapa claro",
   "Nautical marks": "Señalización náutica",
   "Isobaths": "Isóbatas",
+  "Wind forecast": "Viento (predicción)",
   "Last data": "Último dato",
   "See observations": "Ver observaciones",
   "Loading": "Cargando",

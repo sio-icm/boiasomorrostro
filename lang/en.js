@@ -120,6 +120,7 @@ export default en = {
   "Light map": "Light map",
   "Nautical marks": "Nautical marks",
   "Isobaths": "Isobaths",
+  "Wind forecast": "Wind forecast",
   "Last data": "Last data",
   "See observations": "See observations",
   "Loading": "Loading",
