@@ -43,6 +43,9 @@
 export const OceanProjectedGridVertShader = /* glsl */ `
         
   #define PI 3.141592653589793
+  // Shortest wavelength drawn, relative to the distance to the camera (fades between MIN and MAX)
+  #define ANTIALIAS_MIN 0.08
+  #define ANTIALIAS_MAX 0.2
   precision lowp float;
 
   uniform float u_time;
@@ -80,6 +83,13 @@ export const OceanProjectedGridVertShader = /* glsl */ `
     float amplitude = max(waveParams.y, 0.01) / 2.0;
     float wavelength = amplitude * 2.0 * PI / steepness;
     vec2 direction = waveParams.zw;
+
+    // Anti-aliasing: fade out waves too short for the grid to draw at this distance.
+    // Otherwise they alias into thin parallel stripes along the bigger waves
+    float distToCamera = distance(position, cameraPosition);
+    float aliasingFade = smoothstep(ANTIALIAS_MIN * distToCamera, ANTIALIAS_MAX * distToCamera, wavelength);
+    amplitude *= aliasingFade;
+    steepness *= aliasingFade;
 
     // Wave coefficient
     float k = 2.0 * PI / wavelength;
