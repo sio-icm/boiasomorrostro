@@ -116,6 +116,8 @@ class SceneManager{
 
     // Ocean
     this.ocean = new OceanEntity(scene);
+    // Ocean reflection of the sky and the coastline, once both are loaded
+    Promise.all([this.skybox.loaded, this.coastLine.loaded]).then(() => this.updateOceanReflection());
     // Buoy
     this.somorrostroBuoy = new SomorrostroBuoyEntity(scene);
 
@@ -445,6 +447,25 @@ class SceneManager{
   }
 
 
+
+
+
+  // OCEAN REFLECTION
+  // Renders the sky and the coastline once into a cubemap, which the ocean shader reflects.
+  // Everything else (ocean, buoy, vessels...) is hidden during the capture; lights stay on.
+  updateOceanReflection = function(){
+    const children = this.scene.children;
+    const visibility = children.map(child => child.visible);
+    children.forEach(child => child.visible = child.isLight || child == this.skybox.root || child == this.coastLine.root);
+
+    const renderTarget = new THREE.WebGLCubeRenderTarget(512);
+    const cubeCamera = new THREE.CubeCamera(1, 100000, renderTarget);
+    cubeCamera.position.set(0, 1, 0);
+    cubeCamera.update(this.renderer, this.scene);
+
+    children.forEach((child, index) => child.visible = visibility[index]);
+    this.ocean.setReflectionMap(renderTarget.texture);
+  }
 
 
 

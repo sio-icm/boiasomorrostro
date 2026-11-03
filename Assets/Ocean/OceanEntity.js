@@ -94,6 +94,8 @@ class OceanEntity {
       u_fogUnderwaterColor: { value: new THREE.Vector3(scene.fog.color.r, scene.fog.color.g, scene.fog.color.b)},
       u_fogDensity: {value: scene.fog.density},
       u_sunDirection: { value: new THREE.Vector3(-0.81, 0.22, -0.58) }, // Low sun towards the skyline, so its glint shows in the default view
+      u_reflectionMap: { value: null }, // Cubemap of the sky and coastline (see SceneManager.updateOceanReflection)
+      u_hasReflectionMap: { value: 0 },
       u_paramsTexture: {value: paramsTexture},
       u_imgSize: {value: new THREE.Vector2(imgSize, imgSize)},
       u_steepnessFactor: { value: 0.2 },
@@ -183,6 +185,14 @@ class OceanEntity {
   updateOceanParameters = function(params){
     this.oceanParams.updateParams(params);
     this.updateParamsTexture();
+  }
+
+  // Set the cubemap that the ocean reflects
+  setReflectionMap(texture) {
+    if (!this.oceanTile)
+      return;
+    this.oceanTile.material.uniforms.u_reflectionMap.value = texture;
+    this.oceanTile.material.uniforms.u_hasReflectionMap.value = 1;
   }
 
   updateParamsTexture() {

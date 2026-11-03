@@ -253,6 +253,8 @@ export const OceanProjectedGridFragShader = /* glsl */`
   uniform lowp float u_time; // Same precision as in the vertex shader (required for shared uniforms)
   uniform lowp float u_steepnessFactor; // Grows with the wind (see Canvas3D.vue), drives the amount of foam
   uniform vec3 u_sunDirection;
+  uniform samplerCube u_reflectionMap;
+  uniform float u_hasReflectionMap;
   // Fog
   uniform vec3 u_fogUnderwaterColor;
   uniform float u_fogDensity;
@@ -340,7 +342,7 @@ export const OceanProjectedGridFragShader = /* glsl */`
     float underwaterFactor = (abs(cameraPosition.y)/cameraPosition.y)*0.5 + 0.5;
     // Fog underwater (Fog exp 2)
     float fogDepth = distance(v_WorldPosition, cameraPosition);
-    float fogDensity = u_fogDensity - u_fogDensity * 0.5 * underwaterFactor;
+    float fogDensity = u_fogDensity - u_fogDensity * 0.75 * underwaterFactor; // Lighter haze above water, so the horizon stays sharp
     float fogFactor = 1.0 - exp( - fogDensity * fogDensity * fogDepth * fogDepth );
     vec3 fogAirColor = vec3(0.8, 0.93, 1.0);
     vec3 fogColor = mix(u_fogUnderwaterColor, fogAirColor, underwaterFactor) ;
@@ -357,8 +359,13 @@ export const OceanProjectedGridFragShader = /* glsl */`
     fresnel = clamp(fresnel, 0.0, 1.0);
 
     // Sky reflection: gradient from horizon to zenith along the reflected ray
-    vec3 reflectedRay = reflect(-viewDir, normal);
+    vec3 reflectedRay = reflect(-viewDir, fresnelNormal); // Smoother normal, so the coastline shows in the reflection
     vec3 skyColor = mix(skyHorizonColor, skyZenithColor, pow(clamp(reflectedRay.y, 0.0, 1.0), 0.6));
+    // Real sky and coastline, when the cubemap is ready. Rays pointing down are lifted to the horizon.
+    // The cubemap is linear, while this shader works in display colours
+    vec3 envRay = normalize(vec3(reflectedRay.x, max(reflectedRay.y, 0.01), reflectedRay.z));
+    vec3 envColor = pow(textureCube(u_reflectionMap, envRay).rgb, vec3(1.0 / 2.2));
+    skyColor = mix(skyColor, envColor, u_hasReflectionMap);
 
     // Water body: dark blue, lit a little by the sun
     float sunDiffuse = max(0.0, dot(geoNormal, sunDir));

@@ -9,7 +9,8 @@ class CoastLineEntity {
   constructor(scene) {
     const manager = new THREE.LoadingManager(); // Empty manager
     const gltfLoader = new GLTFLoader(manager);
-    gltfLoader.load('/boiasomorrostro/Assets/Terrain/CoastLine/CoastLine.glb', (gltf) => { // '../Assets/Skybox/skybox.glb'
+    // Resolves once the coastline is in the scene (see SceneManager.updateOceanReflection)
+    this.loaded = new Promise(resolve => gltfLoader.load('/boiasomorrostro/Assets/Terrain/CoastLine/CoastLine.glb', (gltf) => { // '../Assets/Skybox/skybox.glb'
       // GLTF scene
       const root = gltf.scene;
       this.root = root;
@@ -23,7 +24,8 @@ class CoastLineEntity {
       //root.position.y = -1;
 
       scene.add(root);
-    });
+      resolve();
+    }));
   }
 }
 
