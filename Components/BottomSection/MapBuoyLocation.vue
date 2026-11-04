@@ -56,6 +56,26 @@ export default {
       },
     });
     new CenterControl({ position: 'topright' }).addTo(map);
+    // Ruler: while on, each click on the map adds a point to a route, with the distance of each
+    // leg and the total. Starts wherever you click (clicking near the buoy snaps to it)
+    const MeasureControl = L.Control.extend({
+      onAdd: () => {
+        const bar = L.DomUtil.create('div', 'leaflet-bar');
+        const button = this.measureButton = L.DomUtil.create('a', 'map-center-button', bar);
+        button.href = '#';
+        button.role = 'button';
+        button.title = this.$i18n.t("Measure distances");
+        button.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 17 L17 3 L21 7 L7 21 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M7 13l2 2M10 10l2 2M13 7l2 2" stroke="currentColor" stroke-width="2"/></svg>`;
+        L.DomEvent.disableClickPropagation(bar);
+        L.DomEvent.on(button, 'click', (e) => {
+          L.DomEvent.preventDefault(e);
+          this.setMeasuring(!this.measuring);
+        });
+        return bar;
+      },
+    });
+    new MeasureControl({ position: 'topright' }).addTo(map);
 
     // Base maps: OpenStreetMap toned down to the app's blues (see .map-tiles-soft),
     // alone or with the sea depth (bathymetry) coloured on top. zIndex keeps the layers in order when switching
@@ -156,16 +176,15 @@ export default {
     }).addTo(map);
     this.updateViewCone();
     window.eventBus.on('Canvas3D_cameraChange', this.updateViewCone);
-    // It also measures the distance and bearing from the buoy to that point
-    this.measure = L.polyline([], { interactive: false, color: '#0f3062', weight: 2, dashArray: '6 6' }).addTo(map);
+    // While measuring (see MeasureControl), clicks add points to the route instead
+    this.measureLayer = L.layerGroup().addTo(map);
+    this.measurePoints = [];
     map.on('click', (e) => {
-      const bearing = this.bearingFromBuoy(buoyLatLng, e.latlng);
-      window.sceneManager?.faceBearing(bearing);
-      this.measure.setLatLngs([buoyLatLng, e.latlng]);
-      this.measure.bindTooltip(`${this.formatDistance(map.distance(buoyLatLng, e.latlng))} · ${Math.round((bearing + 360) % 360)}°`, {
-        permanent: true, direction: 'top', className: 'map-measure', offset: [0, -6],
-      }).openTooltip(e.latlng);
+      if (this.measuring) this.addMeasurePoint(e.latlng);
+      else window.sceneManager?.faceBearing(this.bearing(L.latLng(buoyLatLng), e.latlng));
     });
+    this.onMeasureKey = (e) => { if (e.key === 'Escape' && this.measuring) this.setMeasuring(false); };
+    document.addEventListener('keydown', this.onMeasureKey);
 
     // Area covered by the AIS feed, faintly
     this.drawAISCoverage();
@@ -189,6 +208,7 @@ export default {
     this.startUpdateLoop();
   },
   unmounted() {
+    document.removeEventListener('keydown', this.onMeasureKey);
     // Stop loop
     if (this.intervalId) {
       clearInterval(this.intervalId);
@@ -409,10 +429,52 @@ export default {
       this.map.invalidateSize();
     },
     // DISTANCES
-    bearingFromBuoy(buoyLatLng, latlng) {
-      const north = (latlng.lat - buoyLatLng[0]) * 111320;
-      const east = (latlng.lng - buoyLatLng[1]) * 111320 * Math.cos(buoyLatLng[0] * Math.PI / 180);
-      return Math.atan2(east, north) * 180 / Math.PI;
+    // Bearing in degrees (0-360, clockwise from north) from one point to another
+    bearing(from, to) {
+      const north = (to.lat - from.lat) * 111320;
+      const east = (to.lng - from.lng) * 111320 * Math.cos(from.lat * Math.PI / 180);
+      return (Math.atan2(east, north) * 180 / Math.PI + 360) % 360;
+    },
+    // Turning it off clears the route; while on, the map doesn't turn the 3D camera or zoom on double click
+    setMeasuring(measuring) {
+      this.measuring = measuring;
+      this.measureButton.classList.toggle('active', measuring);
+      this.map.getContainer().classList.toggle('map-measuring', measuring);
+      measuring ? this.map.doubleClickZoom.disable() : this.map.doubleClickZoom.enable();
+      if (!measuring) {
+        this.measurePoints = [];
+        this.measureLayer.clearLayers();
+      }
+    },
+    addMeasurePoint(latlng) {
+      // Snap to the buoy when clicking within 12 px of it
+      const buoy = this.buoyMarker.getLatLng();
+      if (this.map.latLngToContainerPoint(latlng).distanceTo(this.map.latLngToContainerPoint(buoy)) < 12) latlng = buoy;
+      this.measurePoints.push(latlng);
+      this.drawMeasure();
+    },
+    // The route, a dot on each point, and a label with the total so far at each one; the last
+    // also with the bearing of its leg. Clicking a dot removes that point
+    drawMeasure() {
+      const points = this.measurePoints;
+      this.measureLayer.clearLayers();
+      L.polyline(points, { interactive: false, color: '#0f3062', weight: 2, dashArray: '6 6' }).addTo(this.measureLayer);
+      let total = 0;
+      points.forEach((point, index) => {
+        if (index > 0) total += this.map.distance(points[index - 1], point);
+        const dot = L.circleMarker(point, { radius: 5, color: 'white', weight: 2, fillColor: '#0f3062', fillOpacity: 1, bubblingMouseEvents: false })
+          .addTo(this.measureLayer);
+        dot.on('click', () => {
+          points.splice(index, 1);
+          this.drawMeasure();
+        });
+        if (index === 0) return;
+        const isLast = index === points.length - 1;
+        const label = isLast
+          ? `${this.formatDistance(total)} · ${Math.round(this.bearing(points[index - 1], point))}°`
+          : this.formatDistance(total);
+        dot.bindTooltip(label, { permanent: true, direction: 'top', className: 'map-measure' + (isLast ? ' last' : ''), offset: [0, -6] });
+      });
     },
     formatDistance(metres) {
       const nauticalMiles = (metres / 1852).toFixed(1);
@@ -824,6 +886,17 @@ export default {
 }
 .map-measure::before {
   border-top-color: var(--darkBlue);
+}
+.map-measure:not(.last) {
+  opacity: 0.8;
+  font-size: 0.62rem;
+  padding: 2px 5px;
+}
+.leaflet-bar a.map-center-button.active {
+  background-color: var(--blue);
+}
+.map-measuring {
+  cursor: crosshair !important;
 }
 .map-center-button {
   display: flex !important;

@@ -129,6 +129,7 @@ export default en = {
   "See observations": "See observations",
   "Loading": "Loading",
   "No data": "No data",
+  "Measure distances": "Measure distances",
   "Wind rose": "Wind rose (3 days)",
   "ICATMAR buoys": "ICATMAR buoys",
   "Buoy": "Buoy",

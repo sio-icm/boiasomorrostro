@@ -130,6 +130,7 @@ export default ca = {
   "See observations": "Veure observacions",
   "Loading": "Carregant",
   "No data": "Sense dades",
+  "Measure distances": "Mesurar distàncies",
   "Wind rose": "Rosa dels vents (3 dies)",
   "ICATMAR buoys": "Boies de l'ICATMAR",
   "Buoy": "Boia",

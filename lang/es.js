@@ -131,6 +131,7 @@ export default es = {
   "See observations": "Ver observaciones",
   "Loading": "Cargando",
   "No data": "Sin datos",
+  "Measure distances": "Medir distancias",
   "Wind rose": "Rosa de los vientos (3 días)",
   "ICATMAR buoys": "Boyas de ICATMAR",
   "Buoy": "Boya",
