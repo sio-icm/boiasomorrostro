@@ -264,6 +264,9 @@ export const OceanProjectedGridFragShader = /* glsl */`
   uniform lowp float u_time; // Same precision as in the vertex shader (required for shared uniforms)
   uniform lowp float u_steepnessFactor; // Grows with the wind (see Canvas3D.vue), drives the amount of foam
   uniform vec3 u_sunDirection;
+  uniform vec3 u_sunColor;
+  uniform float u_daylight;
+  uniform vec3 u_skyTint;
   uniform samplerCube u_reflectionMap;
   uniform float u_hasReflectionMap;
   // Fog
@@ -342,15 +345,15 @@ export const OceanProjectedGridFragShader = /* glsl */`
 
     // Sun (direction towards the sun)
     vec3 sunDir = normalize(u_sunDirection);
-    vec3 sunColor = vec3(1.0, 0.95, 0.85);
+    vec3 sunColor = u_sunColor;
 
     // Water colours: deep body and the turquoise light that passes through thin crests
-    vec3 deepColor = vec3(0.004, 0.05, 0.12);
-    vec3 scatterColor = vec3(0.0, 0.40, 0.42);
+    vec3 deepColor = vec3(0.004, 0.05, 0.12) * u_daylight;
+    vec3 scatterColor = vec3(0.0, 0.40, 0.42) * u_daylight;
 
     // Sky colours for the reflection: pale at the horizon, deeper blue above
-    vec3 skyHorizonColor = vec3(0.70, 0.85, 0.95);
-    vec3 skyZenithColor = vec3(0.25, 0.50, 0.85);
+    vec3 skyHorizonColor = vec3(0.70, 0.85, 0.95) * u_skyTint;
+    vec3 skyZenithColor = vec3(0.25, 0.50, 0.85) * u_skyTint;
 
 
     // Underwater factor (if camera is above or below water)
@@ -359,7 +362,7 @@ export const OceanProjectedGridFragShader = /* glsl */`
     float fogDepth = distance(v_WorldPosition, cameraPosition);
     float fogDensity = u_fogDensity - u_fogDensity * 0.75 * underwaterFactor; // Lighter haze above water, so the horizon stays sharp
     float fogFactor = 1.0 - exp( - fogDensity * fogDensity * fogDepth * fogDepth );
-    vec3 fogAirColor = vec3(0.8, 0.93, 1.0);
+    vec3 fogAirColor = vec3(0.8, 0.93, 1.0) * u_skyTint;
     vec3 fogColor = mix(u_fogUnderwaterColor, fogAirColor, underwaterFactor) ;
 
     
@@ -411,7 +414,7 @@ export const OceanProjectedGridFragShader = /* glsl */`
     float lace = 1.0 - abs(laceNoise * 2.0 - 1.0); // 1 on the noise ridges
     float foam = smoothstep(1.0 - coverage, 1.0 - coverage + 0.12, lace);
     foam *= 1.0 - smoothstep(40.0, 120.0, distance(v_WorldPosition, cameraPosition));
-    vec3 foamColor = vec3(0.92, 0.96, 0.98) * (0.75 + 0.35 * sunDiffuse);
+    vec3 foamColor = vec3(0.92, 0.96, 0.98) * (0.75 + 0.35 * sunDiffuse) * mix(u_skyTint, vec3(1.0), 0.3);
     color = mix(color, foamColor, foam * 0.8);
 
     color = acesToneMapping(color);
