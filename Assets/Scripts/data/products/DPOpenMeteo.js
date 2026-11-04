@@ -1,7 +1,7 @@
 import DP from './DataProduct.js';
 
 // Atmospheric forecast at the buoy
-class DPOpenWeatherAPI extends DP {
+class DPOpenMeteo extends DP {
 }
 
-export default DPOpenWeatherAPI;
+export default DPOpenMeteo;

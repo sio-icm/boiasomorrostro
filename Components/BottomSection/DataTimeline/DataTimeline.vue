@@ -33,7 +33,7 @@ export default {
     // ForecastSection.vue) - a row whose product doesn't use this at all is
     // never "loading". Keyed by sensor id where that applies (the buoy - a
     // sensor's own fetch resolves independently of its others), or by
-    // product name otherwise (OpenWeather/CMEMS - a single source/promise
+    // product name otherwise (Open-Meteo/CMEMS - a single source/promise
     // covers every row, see isLoading()).
     loading: { type: Object, default: () => ({}) },
   },

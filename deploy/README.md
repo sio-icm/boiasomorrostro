@@ -82,9 +82,3 @@ python3 tools/simulate_pati.py https://boia.example.org/
 ```
 
 En la app del móvil (Traccar Client), la dirección del servidor es `https://boia.example.org/`.
-
-## Pendiente
-
-- **Predicción (OpenWeather)**: usa `api.icatmar.cat/openWeatherAPI`, que guarda la clave de
-  OpenWeather de ICATMAR y solo responde a su web. Fuera de ella, esa sección queda vacía. La
-  solución es cambiarla a Open-Meteo, que no necesita clave.
