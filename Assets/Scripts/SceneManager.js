@@ -22,6 +22,21 @@ import { TextMeshEntity } from '/boiasomorrostro/Assets/TextMesh/TextMeshEntity.
 
 // AIS Vessels
 import { AISVesselsManager } from '/boiasomorrostro/Assets/AISVessels/AISVesselsManager.js';
+import { sunPosition } from '/boiasomorrostro/Assets/Scripts/SunPosition.js';
+
+// Light by the height of the sun (degrees), interpolated between these states:
+//  tint      multiplies the sky panorama, the air and the sky the sea reflects
+//  sun       colour of the sunlight (and of its glint on the water)
+//  daylight  how lit the water is
+//  hemi, dir intensities of the sky light and the sunlight on the models
+const SKY_STATES = [
+  { elevation: -18, tint: [0.10, 0.12, 0.24], sun: [0.30, 0.35, 0.50], daylight: 0.12, hemi: 0.15, dir: 0.05 }, // Night
+  { elevation: -6,  tint: [0.32, 0.30, 0.48], sun: [0.70, 0.45, 0.45], daylight: 0.35, hemi: 0.30, dir: 0.15 }, // Dusk
+  { elevation: 0,   tint: [0.85, 0.62, 0.55], sun: [1.00, 0.55, 0.30], daylight: 0.65, hemi: 0.45, dir: 0.45 }, // Sunset
+  { elevation: 8,   tint: [1.00, 0.86, 0.72], sun: [1.00, 0.78, 0.55], daylight: 0.85, hemi: 0.55, dir: 0.70 }, // Golden hour
+  { elevation: 20,  tint: [1.00, 1.00, 1.00], sun: [1.00, 0.95, 0.85], daylight: 1.00, hemi: 0.60, dir: 0.80 }, // Day
+];
+const SKY_UPDATE_MINUTES = 5;
 
 
 class SceneManager{
@@ -117,7 +132,12 @@ class SceneManager{
     // Ocean
     this.ocean = new OceanEntity(scene);
     // Ocean reflection of the sky and the coastline, once both are loaded
-    Promise.all([this.skybox.loaded, this.coastLine.loaded]).then(() => this.updateOceanReflection());
+    // Light of the time of day, then the ocean reflection of the sky and the coastline (tinted by it),
+    // once both are loaded; again every few minutes
+    Promise.all([this.skybox.loaded, this.coastLine.loaded]).then(() => {
+      this.updateSky();
+      this.skyInterval = setInterval(() => this.updateSky(), SKY_UPDATE_MINUTES * 60 * 1000);
+    });
     // Buoy
     this.somorrostroBuoy = new SomorrostroBuoyEntity(scene);
 
@@ -176,6 +196,7 @@ class SceneManager{
       const intensity = 0.6;
       const light = new THREE.HemisphereLight(skyColor, groundColor, intensity);
       scene.add(light);
+      this.skyLight = light;
     }
 
     { // LIGHT
@@ -186,6 +207,7 @@ class SceneManager{
       light.target.position.set(-5, 0, 0);
       scene.add(light);
       scene.add(light.target);
+      this.sunLight = light; // Placed where the sun is (see updateSky)
     }
 
 
@@ -568,6 +590,52 @@ class SceneManager{
 
 
 
+  // SKY BY THE TIME OF DAY
+  // Light of the sky, the sun and the sea for the sun's real position at the buoy (now, or the
+  // date given; see setSkyTime). The sky panorama is a midday picture, so it is tinted
+  updateSky = function(date = this.skyDate || new Date()){
+    const { elevation, azimuth } = sunPosition(date, this.LATITUDE, this.LONGITUDE);
+    // Interpolate the states around this elevation
+    const index = SKY_STATES.findIndex(state => state.elevation >= elevation);
+    const upper = SKY_STATES[index === -1 ? SKY_STATES.length - 1 : index];
+    const lower = SKY_STATES[Math.max(0, (index === -1 ? SKY_STATES.length : index) - 1)];
+    const f = upper === lower ? 0 : Math.min(1, Math.max(0, (elevation - lower.elevation) / (upper.elevation - lower.elevation)));
+    const mix = (key) => Array.isArray(lower[key]) ? lower[key].map((v, i) => v + (upper[key][i] - v) * f) : lower[key] + (upper[key] - lower[key]) * f;
+    const sky = { tint: mix('tint'), sun: mix('sun'), daylight: mix('daylight'), hemi: mix('hemi'), dir: mix('dir') };
+
+    // Direction towards the sun (x east, y up, z south); below the horizon, kept just above it
+    // so its last light still glints on the water
+    const rad = Math.PI / 180;
+    const height = Math.max(elevation, 3) * rad;
+    const sunDirection = new THREE.Vector3(Math.sin(azimuth * rad) * Math.cos(height), Math.sin(height), -Math.cos(azimuth * rad) * Math.cos(height));
+
+    // Sky panorama: its own colours times the tint
+    this.skybox.root?.traverse(object => {
+      if (!object.material?.color) return;
+      object.userData.skyColor ??= object.material.color.clone();
+      object.material.color.copy(object.userData.skyColor).multiply(new THREE.Color(...sky.tint));
+    });
+    this.scene.background = new THREE.Color(0x47A0B9).multiply(new THREE.Color(...sky.tint));
+    // Lights on the buoy, the coast and the vessels
+    this.skyLight.intensity = sky.hemi;
+    this.skyLight.color.setRGB(0.69, 0.88, 1.0).multiply(new THREE.Color(...sky.tint));
+    this.sunLight.intensity = sky.dir;
+    this.sunLight.color.setRGB(...sky.sun);
+    this.sunLight.position.copy(sunDirection).multiplyScalar(100);
+    this.sunLight.target.position.set(0, 0, 0);
+    // Sea
+    this.ocean.setSky({ sunDirection, sunColor: sky.sun, daylight: sky.daylight, skyTint: sky.tint });
+    this.updateOceanReflection();
+    this.sky = { date, elevation, azimuth };
+  }
+  // Shows the sky at another moment (a Date), or back to now with undefined
+  setSkyTime = function(date){
+    this.skyDate = date;
+    this.updateSky();
+  }
+
+
+
   // OCEAN REFLECTION
   // Renders the sky and the coastline once into a cubemap, which the ocean shader reflects.
   // Everything else (ocean, buoy, vessels...) is hidden during the capture; lights stay on.
@@ -583,6 +651,9 @@ class SceneManager{
 
     children.forEach((child, index) => child.visible = visibility[index]);
     this.ocean.setReflectionMap(renderTarget.texture);
+    // Captured again with every change of light (see updateSky): free the previous one
+    this.reflectionTarget?.dispose();
+    this.reflectionTarget = renderTarget;
   }
 
 

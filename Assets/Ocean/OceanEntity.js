@@ -97,7 +97,10 @@ class OceanEntity {
       u_time: { value: this.time },
       u_fogUnderwaterColor: { value: new THREE.Vector3(scene.fog.color.r, scene.fog.color.g, scene.fog.color.b)},
       u_fogDensity: {value: scene.fog.density},
-      u_sunDirection: { value: new THREE.Vector3(-0.81, 0.22, -0.58) }, // Low sun towards the skyline, so its glint shows in the default view
+      u_sunDirection: { value: new THREE.Vector3(-0.81, 0.22, -0.58) }, // Set from the real sun by SceneManager.updateSky
+      u_sunColor: { value: new THREE.Vector3(1.0, 0.95, 0.85) },
+      u_daylight: { value: 1.0 }, // 1 by day, down to ~0.1 at night: darkens the water and the foam
+      u_skyTint: { value: new THREE.Vector3(1, 1, 1) }, // Colour of the sky and the air (fog), by the time of day
       u_reflectionMap: { value: null }, // Cubemap of the sky and coastline (see SceneManager.updateOceanReflection)
       u_hasReflectionMap: { value: 0 },
       u_paramsTexture: {value: paramsTexture},
@@ -192,6 +195,17 @@ class OceanEntity {
   }
 
   // Set the cubemap that the ocean reflects
+  // Light of the time of day (see SceneManager.updateSky)
+  setSky({ sunDirection, sunColor, daylight, skyTint }) {
+    if (!this.oceanTile)
+      return;
+    const uniforms = this.oceanTile.material.uniforms;
+    uniforms.u_sunDirection.value.copy(sunDirection);
+    uniforms.u_sunColor.value.set(...sunColor);
+    uniforms.u_daylight.value = daylight;
+    uniforms.u_skyTint.value.set(...skyTint);
+  }
+
   setReflectionMap(texture) {
     if (!this.oceanTile)
       return;
