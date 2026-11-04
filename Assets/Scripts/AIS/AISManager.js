@@ -29,11 +29,12 @@ export class AISManager {
 
     // Connection
     this.ws;
-    // if (window.location.href.includes('localhost') || window.location.href.includes('127.0.0.1')) {
-    //   this.ws = new WebSocket('ws://localhost:30521');
-    // } else {
-    this.ws = new WebSocket('wss://api.icatmar.cat/ais');
-    // }
+    // ICATMAR's server only accepts its own website: locally, ais_relay.py serves the same feed from aisstream.io
+    if (['localhost', '127.0.0.1'].includes(location.hostname)) {
+      this.ws = new WebSocket('ws://localhost:8766');
+    } else {
+      this.ws = new WebSocket('wss://api.icatmar.cat/ais');
+    }
     this.isCreated = true;
 
     // General connection events
