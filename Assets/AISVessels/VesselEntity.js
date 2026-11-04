@@ -1,14 +1,18 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '/boiasomorrostro/lib/three.js/examples/jsm/loaders/GLTFLoader.js';
-class VesselEntity {
+import { MovingVessel } from './MovingVessel.js';
+
+// An AIS vessel with a model, which moves as every vessel (see MovingVessel). The default model
+// is a small motor boat; the subclasses are the bigger ships. LONGITUDE and LATITUDE (the buoy's)
+// are set by AISVesselsManager
+class VesselEntity extends MovingVessel {
 
   isLoaded = false;
-  sog = 0; // Speed over ground
-  scale = 1; // Scale factor for position calculation
   gltfURL = '/boiasomorrostro/Assets/AISVessels/Objects/Cruiser.glb'; // Default gltf URL
 
   // shipType: https://api.vtexplorer.com/docs/ref-aistypes.html
   constructor(scene, shipInfo, onload, gltfURL) {
+    super();
     // gltfURL    
     this.gltfURL = gltfURL || this.gltfURL; // Use provided URL or default
     // Load
@@ -26,6 +30,7 @@ class VesselEntity {
       VesselEntity.models[this.gltfURL] = new Promise(resolve => new GLTFLoader(new THREE.LoadingManager()).load(this.gltfURL, resolve));
     }
     VesselEntity.models[this.gltfURL].then(gltf => {
+      if (this.removed) return; // Taken out of the scene while loading (see AISVesselsManager.remove)
       this.isLoaded = true;
       this.addToScene({ ...gltf, scene: gltf.scene.clone(true) }, scene, shipInfo, onload);
     });
@@ -37,6 +42,7 @@ class VesselEntity {
     console.log("⛵ AIS Vessel (Default) added to scene");
     // Scene
     this.root = obj.scene;
+    this.setShipDimensions(shipInfo.length, shipInfo.beam);
 
     scene.add(this.root);
     if (onload)
@@ -46,61 +52,14 @@ class VesselEntity {
 
 
 
-  setShipPosition = (long0, lat0, longitude, latitude) => {
-    if (!this.isLoaded)
-      return;
-
-    const R = 6371000; // Earth's radius in meters (approx)
-    // Convert degrees to meters (approximate for small areas)
-    const deltaLat = (latitude - lat0) * (Math.PI / 180) * R;
-    const deltaLon = (longitude - long0) * (Math.PI / 180) * R * Math.cos(lat0 * Math.PI / 180);
-
-    // Set ship position
-    this.root.position.set(deltaLon * this.scale, 0, -deltaLat * this.scale);
-  }
-
-
-  setShipOrientation = (heading) => {
-    if (!this.isLoaded)
-      return;
-    // Set ship orientation
-    this.root.rotation.y = -THREE.MathUtils.degToRad(heading - 90);
-  }
-
-  setShipSOG = (sog) => {
-    if (!this.isLoaded)
-      return;
-    // Set ship speed-over-ground
-    this.sog = sog;
-  }
-
+  // The default model is 11 m long: scaled to the ship's length when known, within reason
   setShipDimensions = (length, beam) => {
-    return;
-
-    if (!this.isLoaded)
-      return;
-
-    // Default Vessel dimensions
-    if (length < 0 || beam < 0) {
-      length = 12;
-      beam = 4;
-    }
-
-    // Set ship dimensions
-    this.root.scale.set(length, 1, beam);
+    if (!this.isLoaded || !(length > 0)) return;
+    this.root.scale.setScalar(Math.min(4, Math.max(0.5, length / 11)));
   }
 
-
-
-  update = (dt) => {
-    // Update ship position
-    if (this.isLoaded) {
-      // Update ship position based on speed and heading
-      // Convert speed from knots to meters per second
-      const speedInMetersPerSecond = this.sog * 0.514444; // 1 knot = 0.514444 m/s
-      this.root.position.x += Math.sin(this.root.rotation.y) * speedInMetersPerSecond * dt * this.scale;
-      this.root.position.z += Math.cos(this.root.rotation.y) * speedInMetersPerSecond * dt * this.scale;
-    }
+  update = (dt, ocean) => {
+    this.updateMotion(dt, ocean);
   }
 
 
