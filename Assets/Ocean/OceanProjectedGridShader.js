@@ -267,6 +267,8 @@ export const OceanProjectedGridFragShader = /* glsl */`
   uniform vec3 u_sunColor;
   uniform float u_daylight;
   uniform vec3 u_skyTint;
+  uniform vec2 u_windOffset;
+  uniform float u_windStrength;
   uniform samplerCube u_reflectionMap;
   uniform float u_hasReflectionMap;
   // Fog
@@ -313,14 +315,17 @@ export const OceanProjectedGridFragShader = /* glsl */`
     // and orientations and blended: alone, its 2 m tile shows as a regular grid in the glints
     // https://www.youtube.com/watch?v=6_-NNKc4lrk&ab_channel=Makin%27StuffLookGood
     // https://blog.selfshadow.com/publications/blending-in-detail/ (partial derivatives)
+    // Both layers drift downwind, the larger one a bit slower, so the pattern also changes
     vec2 worldXZ = v_WorldPosition.xz;
-    vec3 ripples1 = texture2D(u_normalTexture, worldXZ / 2.3).xyz * 2.0 - 1.0;
+    vec3 ripples1 = texture2D(u_normalTexture, (worldXZ - u_windOffset) / 2.3).xyz * 2.0 - 1.0;
     // Second layer turned ~37º and larger, its normals turned back to match
-    vec3 ripples2 = texture2D(u_normalTexture, mat2(0.8, -0.6, 0.6, 0.8) * worldXZ / 5.9 + vec2(0.37, 0.71)).xyz * 2.0 - 1.0;
+    vec3 ripples2 = texture2D(u_normalTexture, mat2(0.8, -0.6, 0.6, 0.8) * (worldXZ - u_windOffset * 0.7) / 5.9 + vec2(0.37, 0.71)).xyz * 2.0 - 1.0;
     ripples2.xy = mat2(0.8, 0.6, -0.6, 0.8) * ripples2.xy;
     vec2 ripplesSlope = ripples1.xy / max(ripples1.z, 0.2) * 0.6 + ripples2.xy / max(ripples2.z, 0.2) * 0.5;
     // Softer far away, where the tiles shrink into a fine pattern
     ripplesSlope *= mix(1.0, 0.45, smoothstep(25.0, 250.0, distance(v_WorldPosition, cameraPosition)));
+    // Calm water is smoother, a strong wind roughens it
+    ripplesSlope *= mix(0.55, 1.35, u_windStrength);
     // We are using Y as up, but for this calculation, Z must be used, as the multiplication in TBN follows this order:
     // Red(x) * tangent + Green(y) * bitangent + Blue (z) * normal
     // Probably I should change either the order in the TBN (e.g. tangent, normal, bitangent) or the order in the multiplication

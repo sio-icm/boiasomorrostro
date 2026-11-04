@@ -290,8 +290,10 @@ export default {
         direction = await data.weather.getValueAt('WDIR', date);
       }
       if (direction != undefined) this.sceneManager.windDirection = direction;
+      if (speed != undefined) this.sceneManager.windSpeed = speed; // m/s, for the wind streaks (see WindStreaks)
       if (speed != undefined && this.sceneManager.ocean) {
         this.sceneManager.ocean.updateSteepness(0.05 + 0.25 * Math.min(1, speed * 3.6 / 25));
+        if (direction != undefined) this.sceneManager.ocean.setWind(direction, speed);
       }
     },
     // Sea state at the buoy at a moment from Open-Meteo Marine (Copernicus Mediterranean waves

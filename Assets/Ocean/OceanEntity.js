@@ -101,6 +101,8 @@ class OceanEntity {
       u_sunColor: { value: new THREE.Vector3(1.0, 0.95, 0.85) },
       u_daylight: { value: 1.0 }, // 1 by day, down to ~0.1 at night: darkens the water and the foam
       u_skyTint: { value: new THREE.Vector3(1, 1, 1) }, // Colour of the sky and the air (fog), by the time of day
+      u_windOffset: { value: new THREE.Vector2(0, 0) }, // How far the small ripples have drifted with the wind (see setWind)
+      u_windStrength: { value: 0.5 }, // 0 calm to 1 strong wind: how marked the small ripples are
       u_reflectionMap: { value: null }, // Cubemap of the sky and coastline (see SceneManager.updateOceanReflection)
       u_hasReflectionMap: { value: 0 },
       u_paramsTexture: {value: paramsTexture},
@@ -204,6 +206,15 @@ class OceanEntity {
     uniforms.u_sunColor.value.set(...sunColor);
     uniforms.u_daylight.value = daylight;
     uniforms.u_skyTint.value.set(...skyTint);
+  }
+
+  // Wind (from direction in degrees, speed in m/s): the small ripples drift downwind, faster and
+  // more marked the stronger it blows
+  setWind(fromDirection, speed) {
+    const toward = (fromDirection + 180) * Math.PI / 180;
+    const drift = 0.3 + 0.06 * speed; // m/s
+    this.windDrift = new THREE.Vector2(Math.sin(toward) * drift, -Math.cos(toward) * drift); // x east, z south
+    if (this.oceanTile) this.oceanTile.material.uniforms.u_windStrength.value = Math.min(1, speed / 12);
   }
 
   setReflectionMap(texture) {
@@ -327,6 +338,7 @@ class OceanEntity {
   // Update
   update(dt){
     this.time += dt;
+    if (this.windDrift && this.oceanTile) this.oceanTile.material.uniforms.u_windOffset.value.addScaledVector(this.windDrift, dt);
 
     // Update shader parameters
     if (this.oceanTile != undefined) {
