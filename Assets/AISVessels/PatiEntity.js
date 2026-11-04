@@ -1,23 +1,24 @@
 import * as THREE from 'three';
+import { MovingVessel } from './MovingVessel.js';
 
 // A patí de vela (the Catalan beach catamaran, without rudder), built here instead of loaded:
 // two hulls, a deck of planks, the mast and the sail with its boom. 5.68 m long, 1.6 m wide.
-// Forward is +X, as the other vessels (see VesselEntity.setShipOrientation).
-// Between position reports it keeps sailing at its speed and heading, and eases towards each new
-// report; it rides the waves of the ocean and sets the sail by the wind.
+// Forward is +X, as the other vessels. It moves as every vessel (see MovingVessel), pitches and
+// rolls with the waves, and sets the sail by the wind.
 
 const LENGTH = 5.68;
 const BEAM = 1.6;
 const MAST_HEIGHT = 7.2;
 const BOOM_LENGTH = 3.4;
-const KNOTS = 0.514444; // m/s
 
-class PatiEntity {
+class PatiEntity extends MovingVessel {
 
   isLoaded = true;
   isPati = true;
+  length = LENGTH;
 
   constructor(scene, shipInfo, LONGITUDE, LATITUDE) {
+    super();
     this.LONGITUDE = LONGITUDE;
     this.LATITUDE = LATITUDE;
     this.root = new THREE.Group();
@@ -65,58 +66,18 @@ class PatiEntity {
     this.rig.add(new THREE.Mesh(new THREE.ShapeGeometry(sailShape), sailMaterial));
 
     scene.add(this.root);
-    this.setReport(shipInfo, true);
-  }
-
-  // Scene position (x east, z south, in m) of a latitude and longitude, as VesselEntity
-  toScene(latitude, longitude) {
-    const R = 6371000;
-    const north = (latitude - this.LATITUDE) * Math.PI / 180 * R;
-    const east = (longitude - this.LONGITUDE) * Math.PI / 180 * R * Math.cos(this.LATITUDE * Math.PI / 180);
-    return new THREE.Vector3(east, 0, -north);
-  }
-
-  // A new position report. The first one places it; later ones are eased towards
-  setReport(shipInfo, first) {
-    this.target = this.toScene(shipInfo.latitude, shipInfo.longitude);
-    const heading = shipInfo.heading != 511 ? Number(shipInfo.heading) : Number(shipInfo.empiricHeading);
-    if (!isNaN(heading)) this.heading = heading;
-    this.speed = (Number(shipInfo.sog) || 0) * KNOTS;
-    if (first) {
-      this.root.position.copy(this.target);
-      this.root.rotation.y = -THREE.MathUtils.degToRad((this.heading || 0) - 90);
-    }
+    this.setReport(shipInfo);
   }
 
   // windFrom: where the wind comes from (degrees), to set the sail
   update(dt, ocean, windFrom) {
+    this.updateMotion(dt, ocean);
     dt = Math.min(dt, 0.1);
-    const root = this.root;
-    // Turn towards the heading, the short way
-    if (this.heading != undefined) {
-      const goal = -THREE.MathUtils.degToRad(this.heading - 90);
-      const diff = Math.atan2(Math.sin(goal - root.rotation.y), Math.cos(goal - root.rotation.y));
-      root.rotation.y += diff * Math.min(1, dt * 1.5);
-    }
-    // Sail on at its speed, and correct slowly towards the last reported position
-    const forward = new THREE.Vector3(Math.cos(root.rotation.y), 0, -Math.sin(root.rotation.y));
-    root.position.addScaledVector(forward, this.speed * dt);
-    const error = this.target.clone().sub(root.position).setY(0);
-    if (error.length() > 200) root.position.copy(this.target); // Too far off: jump
-    else root.position.addScaledVector(error, Math.min(1, dt * 0.3));
-    this.target.addScaledVector(forward, this.speed * dt); // The report ages: it has sailed on since
-
-    // Ride the waves: height, and pitch and roll from the surface normal
-    if (ocean?.isLoaded) {
-      const position = new THREE.Vector3(root.position.x, 0, root.position.z);
-      const normal = new THREE.Vector3();
-      ocean.getNormalAndPositionAt(position, normal);
-      if (!isNaN(position.y)) {
-        root.position.y += (position.y - root.position.y) * Math.min(1, dt * 4);
-        const local = normal.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -root.rotation.y);
-        this.hull.rotation.z += (-Math.atan2(local.x, local.y) * 0.6 - this.hull.rotation.z) * Math.min(1, dt * 3);
-        this.heelTarget = Math.atan2(local.z, local.y) * 0.6;
-      }
+    // Pitch and roll from the surface normal
+    if (this.waveNormal) {
+      const local = this.waveNormal.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -this.root.rotation.y);
+      this.hull.rotation.z += (-Math.atan2(local.x, local.y) * 0.6 - this.hull.rotation.z) * Math.min(1, dt * 3);
+      this.heelTarget = Math.atan2(local.z, local.y) * 0.6;
     }
 
     // Sail: on the side away from the wind, closed when beating, open when running.

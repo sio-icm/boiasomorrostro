@@ -524,7 +524,11 @@ class SceneManager{
   // Called every frame while following: first the flight there (2 s), then keeping the
   // camera's offset to the vessel, so the user can still orbit around it
   updateFollow = function(){
-    const position = this.followed.root.position;
+    // Looked up every frame: the vessel is rebuilt when it gets its proper model (see AISVesselsManager)
+    const vessel = this.aisVesselsManager.ships[this.followedMMSI];
+    if (!vessel?.root) return this.stopFollowing();
+    this.followed = vessel;
+    const position = vessel.root.position;
     if (this.flight) {
       const k = Math.min(1, (performance.now() - this.flight.start) / 2000);
       const ease = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
