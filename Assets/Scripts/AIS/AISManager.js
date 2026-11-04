@@ -143,7 +143,9 @@ export class AISManager {
     }
 
     // Infer heading from position change if not available
-    if (heading == 511 && this.ships[MMSI].latitude && this.ships[MMSI].longitude) {
+    // Only when it has moved (~5 m): from two equal positions it would come out as north
+    const moved = Math.hypot(lat - this.ships[MMSI].latitude, (long - this.ships[MMSI].longitude) * 0.75) > 0.00005;
+    if (heading == 511 && this.ships[MMSI].latitude && this.ships[MMSI].longitude && moved) {
       heading = this.calculateHeading(this.ships[MMSI].longitude, this.ships[MMSI].latitude, long, lat);
       this.ships[MMSI].empiricHeading = heading.toFixed(1);
     }
