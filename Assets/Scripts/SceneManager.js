@@ -311,7 +311,7 @@ class SceneManager{
   // USER INTERACTIONS
   // Reposition camera
   focusOnBuoy = function(){
-    this.followed = undefined; // Stops following a vessel (see follow)
+    this.stopFollowing();
     // Tween camera position
     new TWEEN.Tween(this.camera.position)
       .to({ x: 15, y: 10, z: 15 }, 4000)
@@ -337,7 +337,7 @@ class SceneManager{
       .start();
   }
   faceNorthward = function(){
-    this.followed = undefined; // Stops following a vessel (see follow)
+    this.stopFollowing();
     // Tween camera position to face northward
     let dist = this.camera.position.distanceTo(this.controls.target);
     let newZ = Math.sqrt(dist * dist - Math.pow(this.camera.position.y-this.controls.target.y, 2));
@@ -365,7 +365,7 @@ class SceneManager{
 
   // Turns the camera around its target to look at a compass bearing, keeping its distance and height
   faceBearing = function(bearing){
-    this.followed = undefined; // Stops following a vessel (see follow)
+    this.stopFollowing();
     const target = this.controls.target, position = this.camera.position;
     const horizontalDistance = Math.hypot(position.x - target.x, position.z - target.z);
     const start = this.getCameraBearing();
@@ -469,15 +469,8 @@ class SceneManager{
     if (this.aisVesselsManager) {
       this.aisVesselsManager.update(dt, this.ocean, this.windDirection);
     }
-    // Follow mode: the camera keeps its offset to the followed vessel
-    if (this.followed) {
-      const position = this.followed.root.position;
-      const delta = position.clone().sub(this.followedPosition);
-      this.followedPosition.copy(position);
-      this.camera.position.add(delta);
-      this.controls.target.add(delta);
-      this.controls.update();
-    }
+    // Follow mode (see follow)
+    if (this.followed) this.updateFollow();
 
     // Flag updates
     if (this.flag && this.camera.position.y > 0) {
@@ -505,18 +498,68 @@ class SceneManager{
 
 
   // FOLLOW A VESSEL
-  // Places the camera behind and above the vessel (by MMSI) and keeps following it; undefined stops
+  // Flies the camera behind and above the vessel (by MMSI), then keeps following it
   follow = function(mmsi){
     const vessel = mmsi == undefined ? undefined : this.aisVesselsManager.ships[mmsi];
-    this.followed = vessel?.root ? vessel : undefined;
-    if (this.followed == undefined) return false;
-    const root = this.followed.root;
-    const behind = new THREE.Vector3(-Math.cos(root.rotation.y), 0, Math.sin(root.rotation.y)).multiplyScalar(16);
-    this.followedPosition = root.position.clone();
-    this.controls.target.copy(root.position).add(new THREE.Vector3(0, 2, 0));
-    this.camera.position.copy(root.position).add(behind).add(new THREE.Vector3(0, 6, 0));
-    this.controls.update();
+    if (!vessel?.root) return false;
+    this.followed = vessel;
+    this.followedMMSI = mmsi;
+    this.flight = { camera: this.camera.position.clone(), target: this.controls.target.clone(), start: performance.now() };
     return true;
+  }
+  stopFollowing = function(){
+    this.followed = undefined;
+    this.flight = undefined;
+  }
+  // Where the camera goes for the followed vessel: behind it, further for bigger ships
+  followView = function(){
+    const root = this.followed.root;
+    const distance = Math.max(16, (window.AISManager?.ships[this.followedMMSI]?.length || 0) * 2.5);
+    const behind = new THREE.Vector3(-Math.cos(root.rotation.y), 0, Math.sin(root.rotation.y)).multiplyScalar(distance);
+    return {
+      target: root.position.clone().add(new THREE.Vector3(0, 2, 0)),
+      camera: root.position.clone().add(behind).add(new THREE.Vector3(0, distance * 0.4, 0)),
+    };
+  }
+  // Called every frame while following: first the flight there (2 s), then keeping the
+  // camera's offset to the vessel, so the user can still orbit around it
+  updateFollow = function(){
+    const position = this.followed.root.position;
+    if (this.flight) {
+      const k = Math.min(1, (performance.now() - this.flight.start) / 2000);
+      const ease = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      const view = this.followView();
+      this.camera.position.lerpVectors(this.flight.camera, view.camera, ease);
+      this.controls.target.lerpVectors(this.flight.target, view.target, ease);
+      if (k == 1) {
+        this.flight = undefined;
+        this.followedPosition = position.clone();
+      }
+    } else {
+      const delta = position.clone().sub(this.followedPosition);
+      this.followedPosition.copy(position);
+      this.camera.position.add(delta);
+      this.controls.target.add(delta);
+    }
+    this.controls.update();
+  }
+
+  // PICKING
+  // What is under a point of the canvas (pixels from its top left): 'buoy', a vessel's MMSI,
+  // or undefined. By screen distance (24 px) rather than by ray, so far, tiny ships can be picked
+  pickAt = function(x, y){
+    const canvas = this.renderer.domElement;
+    const candidates = [['buoy', this.somorrostroBuoy?.root]];
+    Object.entries(this.aisVesselsManager.ships).forEach(([mmsi, ship]) => candidates.push([mmsi, ship.root]));
+    let best, bestDistance = 24;
+    candidates.forEach(([id, root]) => {
+      if (!root?.visible) return;
+      const screen = root.position.clone().add(new THREE.Vector3(0, 1.5, 0)).project(this.camera);
+      if (screen.z > 1) return; // Behind the camera
+      const distance = Math.hypot((screen.x + 1) / 2 * canvas.clientWidth - x, (1 - screen.y) / 2 * canvas.clientHeight - y);
+      if (distance < bestDistance) [best, bestDistance] = [id, distance];
+    });
+    return best;
   }
 
 

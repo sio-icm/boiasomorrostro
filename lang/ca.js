@@ -138,7 +138,6 @@ export default ca = {
   "Loading": "Carregant",
   "No data": "Sense dades",
   "Sailing dinghy": "Patí de vela",
-  "Follow in 3D": "Seguir en 3D",
   "History": "Històric",
   history: {
     days7: "7 dies",

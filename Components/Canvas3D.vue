@@ -226,6 +226,21 @@ export default {
 
 
 
+    // Tapping the buoy or a vessel goes to it, and tells the map (which opens its card).
+    // A tap, not a drag: the pointer barely moved and was quickly released
+    const canvas = this.$refs.canvas3D;
+    let down;
+    canvas.addEventListener('pointerdown', (e) => down = { x: e.clientX, y: e.clientY, time: e.timeStamp });
+    canvas.addEventListener('pointerup', (e) => {
+      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6 || e.timeStamp - down.time > 400) return;
+      const rect = canvas.getBoundingClientRect();
+      const picked = this.sceneManager.pickAt(e.clientX - rect.left, e.clientY - rect.top);
+      if (picked == undefined) return;
+      if (picked === 'buoy') this.sceneManager.focusOnBuoy();
+      else this.sceneManager.follow(picked);
+      window.eventBus.emit('Canvas3D_objectPicked', picked);
+    });
+
     // Event emitters
     // Listeners: TopRightMenu, BottomSection
     this.sceneManager.controls.addEventListener('change', (e) => {

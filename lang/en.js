@@ -137,7 +137,6 @@ export default en = {
   "Loading": "Loading",
   "No data": "No data",
   "Sailing dinghy": "Sailing catamaran",
-  "Follow in 3D": "Follow in 3D",
   "History": "History",
   history: {
     days7: "7 days",

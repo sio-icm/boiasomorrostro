@@ -190,12 +190,10 @@ export default {
     this.drawAISCoverage();
     window.eventBus.on('AISManager_bboxes', this.drawAISCoverage);
 
-    // "Follow in 3D" on a patí's card. Captured on the map container: popups stop clicks from
-    // propagating, and their content is rebuilt on every update
-    map.getContainer().addEventListener('click', (e) => {
-      const button = e.target.closest('.map-follow-button');
-      if (button) window.sceneManager?.follow(button.dataset.mmsi);
-    }, true);
+    // Tapping the buoy or a ship on the map takes the 3D camera there (see SceneManager.follow),
+    // and tapping them in the 3D view opens their card here
+    this.buoyMarker.on('click', () => window.sceneManager?.focusOnBuoy());
+    window.eventBus.on('Canvas3D_objectPicked', this.showPicked);
 
     // Ships already received
     this.ships = {};
@@ -223,6 +221,7 @@ export default {
     // Unhook event listener
     window.eventBus.off('AISManager_receivedAISMessage', this.handleAISMessage);
     window.eventBus.off('AISManager_bboxes', this.drawAISCoverage);
+    window.eventBus.off('Canvas3D_objectPicked', this.showPicked);
     window.eventBus.off('Canvas3D_cameraChange', this.updateViewCone);
     window.removeEventListener('resize', this.invalidateMapSize);
     // Stops the wind animation along with everything else on the map
@@ -593,6 +592,13 @@ export default {
       return `<div class="map-card"><div class="map-card-title">${t("Buoy")} ${buoy.name}</div>${body}
         <div class="map-card-date">${t("From Somorrostro")}: ${buoy.distance}</div></div>`;
     },
+    // Opens the card of what was tapped in the 3D view ('buoy' or a ship's MMSI), and pans to it
+    showPicked(picked) {
+      const marker = picked === 'buoy' ? this.buoyMarker : this.ships[picked]?.marker;
+      if (!marker) return;
+      this.map.panTo(marker.getLatLng());
+      marker.openPopup();
+    },
     // SHIPS (AIS)
     drawAISCoverage() {
       if (!window.AISManager) return;
@@ -654,6 +660,7 @@ export default {
           trail: L.polyline([], { interactive: false, weight: 2, opacity: 0.5 }).addTo(this.shipsLayer),
           marker: L.marker(position, { icon: this.shipIcon(ship) })
             .bindPopup(() => this.shipCardHTML(ship), { className: 'map-popup', minWidth: 190 })
+            .on('click', () => window.sceneManager?.follow(ship.MMSI))
             .addTo(this.shipsLayer),
         };
       }
@@ -684,7 +691,6 @@ export default {
         <div class="map-card-date"><span class="map-ship-dot" style="background: ${category.color}"></span>${t(category.label)}
           · ${this.formatTimeAgo(minutes)}</div>
         <table class="map-card-table">${rows.map(([name, value]) => `<tr><td>${name}</td><td>${value}</td></tr>`).join('')}</table>
-        ${this.isPati(ship) ? `<button class="map-card-button map-follow-button" data-mmsi="${ship.MMSI}">${t("Follow in 3D")}</button>` : ''}
       </div>`;
     },
     // Same steps as WindSection.formatTimeAgo, in minutes
