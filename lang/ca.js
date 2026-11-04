@@ -137,6 +137,7 @@ export default ca = {
   "See observations": "Veure observacions",
   "Loading": "Carregant",
   "No data": "Sense dades",
+  "Sailing dinghy": "Patí de vela",
   "History": "Històric",
   history: {
     days7: "7 dies",

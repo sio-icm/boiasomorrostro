@@ -136,6 +136,7 @@ export default en = {
   "See observations": "See observations",
   "Loading": "Loading",
   "No data": "No data",
+  "Sailing dinghy": "Sailing catamaran",
   "History": "History",
   history: {
     days7: "7 days",

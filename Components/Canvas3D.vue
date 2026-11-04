@@ -107,6 +107,7 @@ export default {
           // Calculate steepness
           let steepness = 0.1 + 0.3 * Math.min(1, dataInTimestamp['Hm0'] / 6);
           this.sceneManager.ocean.updateSteepness(steepness);
+        } else if (this.forecastWaves) { // No measured waves (Somorrostro has no wave sensor): keep the forecast ones
         } else { // No ocean data
           this.sceneManager.ocean.updateWaveSignificantHeight(0.1);
           this.sceneManager.ocean.updateMeanWaveDirection(0);
@@ -118,6 +119,8 @@ export default {
       }
       // Wind
       // Ocean steepness
+      // Where the wind comes from, for the patí's sail (see PatiEntity)
+      if (dataInTimestamp['WDIR'] != undefined) this.sceneManager.windDirection = dataInTimestamp['WDIR'];
       if (dataInTimestamp['WSPD'] && this.sceneManager.ocean){
         let windKMH = dataInTimestamp['WSPD'] * 3.6;
         let steepness = 0.05 + 0.25 * Math.min(1, windKMH / 25);
@@ -208,21 +211,42 @@ export default {
 
 
 
+    // ****** WAVES FORECAST *****
+    // The buoy measures no waves, so the sea follows the forecast at the buoy, refreshed hourly
+    this.loadWaveForecast();
+    this.waveForecastInterval = setInterval(this.loadWaveForecast, 60 * 60 * 1000);
+
     // ****** LOADING SCREEN  - INITIAL PARAMETERS *****
     window.eventBus.on('SceneManager_LoadingComplete', () => {
         let params = {
         'Hm0': 0.3,
         'Mdir': 97,
-        'Spr1': 150,
+        'Spr1': 40,
         'WSPD': 6,
         'WDIR': 180,
       }
       updateData(params);
+      this.loadWaveForecast(); // The defaults above stand in until it loads
     });
 
     
 
 
+
+    // Tapping the buoy or a vessel goes to it, and tells the map (which opens its card).
+    // A tap, not a drag: the pointer barely moved and was quickly released
+    const canvas = this.$refs.canvas3D;
+    let down;
+    canvas.addEventListener('pointerdown', (e) => down = { x: e.clientX, y: e.clientY, time: e.timeStamp });
+    canvas.addEventListener('pointerup', (e) => {
+      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6 || e.timeStamp - down.time > 400) return;
+      const rect = canvas.getBoundingClientRect();
+      const picked = this.sceneManager.pickAt(e.clientX - rect.left, e.clientY - rect.top);
+      if (picked == undefined) return;
+      if (picked === 'buoy') this.sceneManager.focusOnBuoy();
+      else this.sceneManager.follow(picked);
+      window.eventBus.emit('Canvas3D_objectPicked', picked);
+    });
 
     // Event emitters
     // Listeners: TopRightMenu, BottomSection
@@ -245,6 +269,42 @@ export default {
     }
   },
   methods: {
+    // Sea state at the buoy from Open-Meteo Marine (Copernicus Mediterranean waves model):
+    // total sea, wind sea and the two swells, applied as the CMEMS data used to be (see above)
+    async loadWaveForecast() {
+      const url = 'https://marine-api.open-meteo.com/v1/marine?latitude=' + (window.LATITUDE || 41.375694)
+        + '&longitude=' + (window.LONGITUDE || 2.216194) + '&current=wave_height,wave_direction,wind_wave_height,'
+        + 'wind_wave_direction,swell_wave_height,swell_wave_direction,secondary_swell_wave_height,secondary_swell_wave_direction';
+      let waves;
+      try {
+        waves = (await (await window.FetchManager.fetch(url, 30)).json()).current;
+      } catch (error) {
+        console.warn('Could not load the waves forecast', error);
+        return;
+      }
+      const ocean = this.sceneManager.ocean;
+      if (!ocean || waves?.wave_height == undefined) return;
+      this.forecastWaves = waves;
+      const height = Math.max(0.1, waves.wave_height);
+      ocean.updateWaveSignificantHeight(height);
+      ocean.updateMeanWaveDirection(waves.wave_direction);
+      // Spread: narrow for one wave system, wider the more wind sea comes from elsewhere.
+      // Never all around, which makes a sea of bumps
+      const windShare = Math.min(1, (waves.wind_wave_height || 0) / height);
+      const angleDiff = Math.abs(((waves.wave_direction - waves.wind_wave_direction + 540) % 360) - 180);
+      ocean.updateDirectionalSpread(Math.min(90, Math.max(25, 25 + angleDiff * windShare)));
+      ocean.updateSteepness(0.05 + 0.25 * windShare);
+      // The 16 waves already make up the whole sea, swell included; the swell's own (perfectly
+      // regular) wave only hints at it, or it shows as even bands
+      this.generateSwell(Math.max(0.05, (waves.swell_wave_height || 0) * 0.35), waves.swell_wave_direction ?? waves.wave_direction);
+      // A small secondary swell crossing the main one looks like a grid of bumps rather than a
+      // sea: only shown when it's at least a third of the main swell
+      const primary = waves.swell_wave_height || 0, secondary = waves.secondary_swell_wave_height || 0;
+      if (secondary >= Math.max(0.15, primary / 3)) this.generateSwell(secondary, waves.secondary_swell_wave_direction, 1);
+      // Flat: even 5 cm is a perfectly regular train of short ripples. Not 0, which the
+      // shader divides by
+      else this.sceneManager.ocean.updateSwell('height', 0.001, 1);
+    },
     //onclick: function(e){},    
     generateSwell: function(Hm0, Mdir, index) {
       // Calculate steepness

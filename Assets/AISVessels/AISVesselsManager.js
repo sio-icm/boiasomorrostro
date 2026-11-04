@@ -1,4 +1,5 @@
 import { VesselEntity, TankerVesselEntity, CargoVesselEntity, CruiseBigEntity } from "./VesselEntity.js";
+import { PatiEntity } from "./PatiEntity.js";
 
 // Ships further than this from the buoy aren't drawn: they'd be lost in the haze anyway,
 // and each one costs a model in the scene
@@ -37,12 +38,15 @@ class AISVesselsManager {
     }
   }
 
-  // Update
-  update(dt) {
-    Object.keys(this.ships).forEach((key) => {
-      this.ships[key].update(dt);
+  // Update. Only patís move between reports for now (see PatiEntity)
+  update(dt, ocean, windFrom) {
+    Object.values(this.ships).forEach(ship => {
+      if (ship.isPati) ship.update(dt, ocean, windFrom);
     });
   }
+
+  // Boats without AIS, sent from a phone through ais_relay.py
+  isPati = (shipInfo) => String(shipInfo.MMSI).startsWith('PATI-')
 
 
   handleAISMessage = (shipInfo) => {
@@ -62,6 +66,12 @@ class AISVesselsManager {
       heading = shipInfo.heading;
     }
 
+    if (this.isPati(shipInfo)) {
+      const pati = this.ships[shipInfo.MMSI];
+      if (pati) pati.setReport(shipInfo);
+      else this.createShip(shipInfo, this.scene);
+      return;
+    }
     // Create new ship if it doesn't exist
     if (this.ships[shipInfo.MMSI] == undefined) {
       this.createShip(shipInfo, this.scene);
@@ -85,6 +95,10 @@ class AISVesselsManager {
 
   createShip = (shipInfo, scene) => {
     if (!this.isNearby(shipInfo)) return;
+    if (this.isPati(shipInfo)) {
+      this.ships[shipInfo.MMSI] = new PatiEntity(scene, shipInfo, this.LONGITUDE, this.LATITUDE);
+      return;
+    }
     // Create ship entity
     let shipEntity
 

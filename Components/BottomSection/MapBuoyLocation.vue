@@ -190,6 +190,11 @@ export default {
     this.drawAISCoverage();
     window.eventBus.on('AISManager_bboxes', this.drawAISCoverage);
 
+    // Tapping the buoy or a ship on the map takes the 3D camera there (see SceneManager.follow),
+    // and tapping them in the 3D view opens their card here
+    this.buoyMarker.on('click', () => window.sceneManager?.focusOnBuoy());
+    window.eventBus.on('Canvas3D_objectPicked', this.showPicked);
+
     // Ships already received
     this.ships = {};
     if (window.AISManager) {
@@ -216,6 +221,7 @@ export default {
     // Unhook event listener
     window.eventBus.off('AISManager_receivedAISMessage', this.handleAISMessage);
     window.eventBus.off('AISManager_bboxes', this.drawAISCoverage);
+    window.eventBus.off('Canvas3D_objectPicked', this.showPicked);
     window.eventBus.off('Canvas3D_cameraChange', this.updateViewCone);
     window.removeEventListener('resize', this.invalidateMapSize);
     // Stops the wind animation along with everything else on the map
@@ -232,8 +238,13 @@ export default {
       if (!sceneManager || !this.viewCone) return;
       const bearing = sceneManager.getCameraBearing();
       const halfWidth = Math.min(sceneManager.getCameraHorizontalFOV(), 170) / 2;
-      const [lat, lng] = [window.LATITUDE, window.LONGITUDE];
-      const length = 4000; // m
+      // From where the camera is (x east, z south, in m from the buoy), not always the buoy:
+      // the camera can be following a vessel (see SceneManager.follow)
+      const metresPerDegree = 6371000 * Math.PI / 180;
+      const camera = sceneManager.camera.position;
+      const lat = window.LATITUDE - camera.z / metresPerDegree;
+      const lng = window.LONGITUDE + camera.x / (metresPerDegree * Math.cos(window.LATITUDE * Math.PI / 180));
+      const length = sceneManager.followed ? 1500 : 4000; // m
       const points = [[lat, lng]];
       for (let step = 0; step <= 12; step++) {
         const angle = (bearing - halfWidth + halfWidth * 2 * step / 12) * Math.PI / 180;
@@ -581,6 +592,13 @@ export default {
       return `<div class="map-card"><div class="map-card-title">${t("Buoy")} ${buoy.name}</div>${body}
         <div class="map-card-date">${t("From Somorrostro")}: ${buoy.distance}</div></div>`;
     },
+    // Opens the card of what was tapped in the 3D view ('buoy' or a ship's MMSI), and pans to it
+    showPicked(picked) {
+      const marker = picked === 'buoy' ? this.buoyMarker : this.ships[picked]?.marker;
+      if (!marker) return;
+      this.map.panTo(marker.getLatLng());
+      marker.openPopup();
+    },
     // SHIPS (AIS)
     drawAISCoverage() {
       if (!window.AISManager) return;
@@ -589,7 +607,12 @@ export default {
         interactive: false, color: '#0f3062', weight: 1, opacity: 0.35, dashArray: '2 6', fill: false,
       }))).addTo(this.map);
     },
+    // Boats without AIS whose position comes from a phone (see ais_relay.py)
+    isPati(ship) {
+      return String(ship.MMSI).startsWith('PATI-');
+    },
     shipCategory(ship) {
+      if (this.isPati(ship)) return { label: "Sailing dinghy", color: '#e5397a' };
       if (String(ship.MMSI).startsWith('99')) return { label: "Aid to navigation", color: '#0f3062' };
       return SHIP_CATEGORIES.find(category => category.matches(Number(ship.shipTypeId)));
     },
@@ -606,7 +629,13 @@ export default {
       const heading = this.shipHeading(ship);
       const size = ship.length > 100 ? 26 : 20;
       let shape;
-      if (String(ship.MMSI).startsWith('99')) {
+      if (this.isPati(ship)) {
+        // A sail over a hull, pointing where it heads
+        shape = `<g transform="rotate(${heading || 0} 10 10)" stroke="white" stroke-width="1.2" stroke-linejoin="round">
+          <path d="M10 1 L10 13 L4 13 Z" fill="${color}"/><path d="M5 15 L15 15 L13 18 L7 18 Z" fill="${color}"/></g>`;
+        return L.divIcon({ className: 'map-ship', html: `<svg viewBox="0 0 20 20" width="26" height="26">${shape}</svg>`,
+          iconSize: [26, 26], iconAnchor: [13, 13] });
+      } else if (String(ship.MMSI).startsWith('99')) {
         shape = `<path d="M10 3 L17 10 L10 17 L3 10 Z" fill="${color}" stroke="white" stroke-width="1.5"/>`;
       } else if (ship.sog >= 0.5 && heading != undefined) {
         shape = `<path d="M10 1 L16 18 L10 14.5 L4 18 Z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"
@@ -631,6 +660,7 @@ export default {
           trail: L.polyline([], { interactive: false, weight: 2, opacity: 0.5 }).addTo(this.shipsLayer),
           marker: L.marker(position, { icon: this.shipIcon(ship) })
             .bindPopup(() => this.shipCardHTML(ship), { className: 'map-popup', minWidth: 190 })
+            .on('click', () => window.sceneManager?.follow(ship.MMSI))
             .addTo(this.shipsLayer),
         };
       }
@@ -654,7 +684,7 @@ export default {
       if (heading != undefined) rows.push([t("Heading"),
         `${heading.toFixed(0)}° <i class="map-card-arrow" style="transform: rotate(${heading}deg)">&#8593;</i>`]);
       if (ship.length > 0 && ship.beam > 0) rows.push([t("Size"), `${ship.length} × ${ship.beam} m`]);
-      rows.push(['MMSI', ship.MMSI]);
+      if (!this.isPati(ship)) rows.push(['MMSI', ship.MMSI]);
       const minutes = (Date.now() - new Date(ship.lastTmst).getTime()) / 60000;
       return `<div class="map-card">
         <div class="map-card-title">${ship.shipName}</div>
