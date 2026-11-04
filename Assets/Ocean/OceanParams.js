@@ -91,6 +91,12 @@ export class OceanParameters{
 
     // Generate direction distribution
     this.waveDirections = this.generateGaussianDistribution(this.oceanParameters.Mdir, this.oceanParameters.Spr1, this.numWaves);
+    // The low (short) waves spread more, like wind chop over a swell: all in the swell's
+    // direction they line up into regular ripples
+    const chopSpread = Math.min(90, this.oceanParameters.Spr1 * 2.5);
+    this.waveDirections.forEach((direction, index) => {
+      if (this.waveHeights[index] < meanHeight * 0.6) this.waveDirections[index] = direction + (Math.random() - 0.5) * 2 * chopSpread;
+    });
 
     // Generate steepness distribution
     this.waveSteepness = this.generateGaussianDistribution(0.25, 0.1, this.numWaves);
@@ -120,6 +126,11 @@ export class OceanParameters{
   // Update wave significant height
   updateWaveSignificantHeight = function(Hm0){
     this.oceanParameters.Hm0 = Hm0;
+    // The other heights follow from it (Rayleigh-distributed sea); otherwise they keep the
+    // defaults of a 2019 record, and a calm sea gets waves of more than a metre
+    this.oceanParameters.H3 = Hm0 * 0.95;
+    this.oceanParameters.H10 = Hm0 * 1.2;
+    this.oceanParameters.hMax = Hm0 * 1.8;
     this.generateDistributions();
     //this.updateHTMLGidget();
   }

@@ -295,7 +295,13 @@ export default {
       ocean.updateDirectionalSpread(Math.min(90, Math.max(25, 25 + angleDiff * windShare)));
       ocean.updateSteepness(0.05 + 0.25 * windShare);
       this.generateSwell(waves.swell_wave_height || 0.05, waves.swell_wave_direction ?? waves.wave_direction);
-      this.generateSwell(waves.secondary_swell_wave_height || 0.05, waves.secondary_swell_wave_direction ?? waves.wave_direction, 1);
+      // A small secondary swell crossing the main one looks like a grid of bumps rather than a
+      // sea: only shown when it's at least a third of the main swell
+      const primary = waves.swell_wave_height || 0, secondary = waves.secondary_swell_wave_height || 0;
+      if (secondary >= Math.max(0.15, primary / 3)) this.generateSwell(secondary, waves.secondary_swell_wave_direction, 1);
+      // Flat: even 5 cm is a perfectly regular train of short ripples. Not 0, which the
+      // shader divides by
+      else this.sceneManager.ocean.updateSwell('height', 0.001, 1);
     },
     //onclick: function(e){},    
     generateSwell: function(Hm0, Mdir, index) {
