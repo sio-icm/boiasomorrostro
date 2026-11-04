@@ -130,6 +130,7 @@ export default ca = {
   "See observations": "Veure observacions",
   "Loading": "Carregant",
   "No data": "Sense dades",
+  "Centre on the buoy": "Centrar a la boia",
   "Ships": "Vaixells",
   "Cargo": "Càrrega",
   "Tanker": "Petrolier",

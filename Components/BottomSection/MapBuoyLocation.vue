@@ -27,6 +27,25 @@ export default {
     // Zoom buttons go top-right: top-left is taken by the panel's close/fullscreen buttons
     let map = this.map = L.map("map", { zoomControl: false, maxZoom: 17 }).setView(buoyLatLng, 13);
     L.control.zoom({ position: 'topright' }).addTo(map);
+    // Below the zoom: back to the buoy, at the starting zoom
+    const CenterControl = L.Control.extend({
+      onAdd: () => {
+        const bar = L.DomUtil.create('div', 'leaflet-bar');
+        const button = L.DomUtil.create('a', 'map-center-button', bar);
+        button.href = '#';
+        button.role = 'button';
+        button.title = this.$i18n.t("Centre on the buoy");
+        button.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+          <circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4" stroke="currentColor" stroke-width="2"/></svg>`;
+        L.DomEvent.disableClickPropagation(bar);
+        L.DomEvent.on(button, 'click', (e) => {
+          L.DomEvent.preventDefault(e);
+          map.flyTo(buoyLatLng, 13, { duration: 1 });
+        });
+        return bar;
+      },
+    });
+    new CenterControl({ position: 'topright' }).addTo(map);
 
     // Base maps: OpenStreetMap toned down to the app's blues (see .map-tiles-soft),
     // alone or with the sea depth (bathymetry) coloured on top. zIndex keeps the layers in order when switching
@@ -629,6 +648,11 @@ export default {
 .map-card-arrow {
   display: inline-block;
   font-style: normal;
+}
+.map-center-button {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
 }
 .map-ship-dot {
   display: inline-block;

@@ -129,6 +129,7 @@ export default en = {
   "See observations": "See observations",
   "Loading": "Loading",
   "No data": "No data",
+  "Centre on the buoy": "Centre on the buoy",
   "Ships": "Ships",
   "Cargo": "Cargo",
   "Tanker": "Tanker",
