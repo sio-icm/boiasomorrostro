@@ -3,6 +3,20 @@
 </template>
 
 <script>
+// Ship categories from the AIS ship type code (https://api.vtexplorer.com/docs/ref-aistypes.html),
+// each with its colour on the map. The first one that matches is used
+const SHIP_CATEGORIES = [
+  { label: "Cargo", color: '#3f9a5a', matches: type => type >= 70 && type <= 79 },
+  { label: "Tanker", color: '#d6454f', matches: type => type >= 80 && type <= 89 },
+  { label: "Passenger", color: '#2f7fb5', matches: type => type >= 60 && type <= 69 },
+  { label: "High speed craft", color: '#e0a21b', matches: type => type >= 40 && type <= 49 },
+  { label: "Fishing", color: '#ef7d3c', matches: type => type == 30 },
+  { label: "Recreational", color: '#a05cc4', matches: type => type == 36 || type == 37 },
+  { label: "Service vessel", color: '#1fa3a3', matches: type => [31, 32, 33, 34, 35, 50, 51, 52, 53, 54, 55, 58].includes(type) },
+  { label: "Other", color: '#7d8a99', matches: () => true },
+];
+const TRAIL_POINTS = 40; // positions kept for each ship's trail
+
 export default {
   name: "MapComponent",
 
@@ -67,6 +81,9 @@ export default {
     Object.values(this.forecasts).forEach(forecast => overlays[this.$i18n.t(forecast.label)] = forecast.group);
     overlays[this.$i18n.t("Isobaths")] = isobaths;
     overlays[this.$i18n.t("Nautical marks")] = seamarks;
+    // Ships from AIS, with their recent trails (see handleAISMessage)
+    this.shipsLayer = L.layerGroup().addTo(map);
+    overlays[this.$i18n.t("Ships")] = this.shipsLayer;
     L.control.layers(
       { [this.$i18n.t("Light map")]: lightMap, [this.$i18n.t("Bathymetry")]: bathymetry },
       overlays,
@@ -112,26 +129,14 @@ export default {
       sceneManager.faceBearing(Math.atan2(east, north) * 180 / Math.PI);
     });
 
-    // Add bboxes
-    if (window.AISManager) {
-      window.AISManager.bboxes.forEach((bbox) => {
-        const bounds = [
-          [bbox[0][0], bbox[0][1]], // Southwest corner
-          [bbox[1][0], bbox[1][1]]  // Northeast corner
-        ];
-        L.rectangle(bounds, { color: "#ff7800", weight: 1 }).addTo(map);
-      });
-    }
+    // Area covered by the AIS feed, faintly
+    this.drawAISCoverage();
+    window.eventBus.on('AISManager_bboxes', this.drawAISCoverage);
 
-    // Add current ships
-    this.markers = {};
+    // Ships already received
+    this.ships = {};
     if (window.AISManager) {
-      let ships = window.AISManager.getCurrentShips();
-
-      Object.keys(ships).forEach((key) => {
-        let shipInfo = ships[key];
-        this.handleAISMessage(shipInfo);
-      });
+      Object.values(window.AISManager.getCurrentShips()).forEach(this.handleAISMessage);
     }
 
     // EVENTS
@@ -152,6 +157,7 @@ export default {
     }
     // Unhook event listener
     window.eventBus.off('AISManager_receivedAISMessage', this.handleAISMessage);
+    window.eventBus.off('AISManager_bboxes', this.drawAISCoverage);
     window.eventBus.off('Canvas3D_cameraChange', this.updateViewCone);
     window.removeEventListener('resize', this.invalidateMapSize);
     // Stops the wind animation along with everything else on the map
@@ -359,98 +365,108 @@ export default {
     invalidateMapSize() {
       this.map.invalidateSize();
     },
-    // Function to handle the received AIS messages
-    handleAISMessage(shipInfo) {
-      // Heading
-      let heading;
-      if (shipInfo.heading === 511) {
-        if (shipInfo.empiricHeading) {
-          heading = shipInfo.empiricHeading.toFixed(0);
-        } else {
-          heading = 511;
-        }
-      } else {
-        heading = shipInfo.heading;
-      }
-
-
-      if (this.markers[shipInfo.MMSI]) {
-        let marker = this.markers[shipInfo.MMSI];
-        // Position update
-        marker.setLatLng([shipInfo.latitude, shipInfo.longitude]);
-
-        // Content
-        let nowText = this.$i18n.t("now");
-
-        marker.setPopupContent(
-          `<b>${shipInfo.shipName}</b><br>
-          <b>MMSI:</b> ${shipInfo.MMSI}<br>
-          <b>Heading:</b> ${shipInfo.heading}°<br>
-          <b>SOG:</b> ${shipInfo.sog} knots<br>
-          <b>Type:</b> ${shipInfo.shipType}<br>
-          <b>Messages:</b> ${shipInfo.typeOfMessages.join(", ")}<br>
-          <b>Dimensions:</b> ${shipInfo.length} x ${shipInfo.beam} m<br>
-          <b>Last Updated: </b><label id="last-update">${nowText}</label>`);
-      }
-      // Marker is new
-      else {
-        // Create New Ship Marker
-        const icon = L.divIcon({
-          html: `<div class="boat" style="transform: rotate(${heading}deg);"></div>`,
-          className: '',
-          iconSize: [30, 30]
-        });
-
-        const marker = L.marker([shipInfo.latitude, shipInfo.longitude], { icon }).addTo(this.map);
-        let nowText = this.$i18n.t("now");
-        marker.bindPopup(
-          `<b>${shipInfo.shipName}</b><br>
-          <b>MMSI:</b> ${shipInfo.MMSI}<br>
-          <b>Heading:</b> ${heading}°<br>
-          <b>SOG:</b> ${shipInfo.sog} knots<br>
-          <b>Type:</b> ${shipInfo.shipType}<br>
-          <b>Messages:</b> ${shipInfo.typeOfMessages.join(", ")}<br>
-          <b>Dimensions:</b> ${shipInfo.length} x ${shipInfo.beam} m<br>
-          <b>Last Updated: </b><label id="last-update">${nowText}</label>`);
-
-        this.markers[shipInfo.MMSI] = marker;
-        marker.getElement().classList.add('ship-marker');
-      }
-      // Marker style
-      let shipMarkerStyle = this.markers[shipInfo.MMSI].getElement().children[0].style;
-      // Heading
-      shipMarkerStyle.transform = `rotate(${heading}deg)`;
-      // Dimensions
-      shipMarkerStyle.width = `${shipInfo.beam * 0.5}px`;
-      shipMarkerStyle.height = `${shipInfo.length * 0.5}px`;
-
+    // SHIPS (AIS)
+    drawAISCoverage() {
+      if (!window.AISManager) return;
+      if (this.aisCoverage) this.aisCoverage.remove();
+      this.aisCoverage = L.layerGroup(window.AISManager.bboxes.map(bbox => L.rectangle(bbox, {
+        interactive: false, color: '#0f3062', weight: 1, opacity: 0.35, dashArray: '2 6', fill: false,
+      }))).addTo(this.map);
     },
-    // UPDATE LOOP
+    shipCategory(ship) {
+      if (String(ship.MMSI).startsWith('99')) return { label: "Aid to navigation", color: '#0f3062' };
+      return SHIP_CATEGORIES.find(category => category.matches(Number(ship.shipTypeId)));
+    },
+    // Heading in degrees, or undefined: 511 means not available, then the one inferred from the track
+    shipHeading(ship) {
+      if (ship.heading != undefined && ship.heading != 511) return Number(ship.heading);
+      if (ship.empiricHeading != undefined) return Number(ship.empiricHeading);
+      return undefined;
+    },
+    // Arrow pointing where it heads, a dot when stopped, a diamond for aids to navigation.
+    // Bigger for long ships
+    shipIcon(ship) {
+      const { color } = this.shipCategory(ship);
+      const heading = this.shipHeading(ship);
+      const size = ship.length > 100 ? 26 : 20;
+      let shape;
+      if (String(ship.MMSI).startsWith('99')) {
+        shape = `<path d="M10 3 L17 10 L10 17 L3 10 Z" fill="${color}" stroke="white" stroke-width="1.5"/>`;
+      } else if (ship.sog >= 0.5 && heading != undefined) {
+        shape = `<path d="M10 1 L16 18 L10 14.5 L4 18 Z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"
+          transform="rotate(${heading} 10 10)"/>`;
+      } else {
+        shape = `<circle cx="10" cy="10" r="5" fill="${color}" stroke="white" stroke-width="1.5"/>`;
+      }
+      return L.divIcon({
+        className: 'map-ship',
+        html: `<svg viewBox="0 0 20 20" width="${size}" height="${size}">${shape}</svg>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+    },
+    // A new AIS message: moves the ship and extends its trail
+    handleAISMessage(ship) {
+      if (ship.latitude == undefined || ship.longitude == undefined) return;
+      const position = [ship.latitude, ship.longitude];
+      let entry = this.ships[ship.MMSI];
+      if (entry == undefined) {
+        entry = this.ships[ship.MMSI] = {
+          trail: L.polyline([], { interactive: false, weight: 2, opacity: 0.5 }).addTo(this.shipsLayer),
+          marker: L.marker(position, { icon: this.shipIcon(ship) })
+            .bindPopup(() => this.shipCardHTML(ship), { className: 'map-popup', minWidth: 190 })
+            .addTo(this.shipsLayer),
+        };
+      }
+      entry.marker.setLatLng(position);
+      entry.marker.setIcon(this.shipIcon(ship));
+      entry.trail.setStyle({ color: this.shipCategory(ship).color });
+      // Only when it has moved (~10 m), so ships at anchor don't pile up points
+      const points = entry.trail.getLatLngs();
+      const last = points[points.length - 1];
+      if (last == undefined || this.map.distance(last, position) > 10) {
+        entry.trail.setLatLngs(points.concat([position]).slice(-TRAIL_POINTS));
+      }
+      if (entry.marker.isPopupOpen()) entry.marker.getPopup().update();
+    },
+    shipCardHTML(ship) {
+      const t = (key) => this.$i18n.t(key);
+      const category = this.shipCategory(ship);
+      const heading = this.shipHeading(ship);
+      const rows = [];
+      if (ship.sog != undefined) rows.push([t("Speed"), `${Number(ship.sog).toFixed(1)} kn (${(ship.sog * 1.852).toFixed(1)} km/h)`]);
+      if (heading != undefined) rows.push([t("Heading"),
+        `${heading.toFixed(0)}° <i class="map-card-arrow" style="transform: rotate(${heading}deg)">&#8593;</i>`]);
+      if (ship.length > 0 && ship.beam > 0) rows.push([t("Size"), `${ship.length} × ${ship.beam} m`]);
+      rows.push(['MMSI', ship.MMSI]);
+      const minutes = (Date.now() - new Date(ship.lastTmst).getTime()) / 60000;
+      return `<div class="map-card">
+        <div class="map-card-title">${ship.shipName}</div>
+        <div class="map-card-date"><span class="map-ship-dot" style="background: ${category.color}"></span>${t(category.label)}
+          · ${this.formatTimeAgo(minutes)}</div>
+        <table class="map-card-table">${rows.map(([name, value]) => `<tr><td>${name}</td><td>${value}</td></tr>`).join('')}</table>
+      </div>`;
+    },
+    // Same steps as WindSection.formatTimeAgo, in minutes
+    formatTimeAgo(minutes) {
+      if (isNaN(minutes)) return '';
+      const hours = minutes / 60;
+      if (minutes < 1) return this.$t('timeAgo.now');
+      if (hours < 1) return this.$t('timeAgo.minutes', { n: Math.floor(minutes) });
+      if (hours < 2) return this.$t('timeAgo.hour');
+      if (hours < 24) return this.$t('timeAgo.hours', { n: Math.floor(hours) });
+      const days = Math.floor(hours / 24);
+      if (days === 1) return this.$t('timeAgo.day');
+      if (days <= 7) return this.$t('timeAgo.days', { n: days });
+      return this.$t('timeAgo.moreThanWeek');
+    },
+    // Keeps the "x min ago" of an open ship card current
     startUpdateLoop() {
       this.intervalId = setInterval(() => {
-        const now = Date.now();
-        const timeSinceLastCall = (now - this.prevTime) / 1000;
-        this.prevTime = now;
-        if (timeSinceLastCall > 11) console.log("Time interval was bigger than 10 seconds: " + timeSinceLastCall.toFixed(1));
-
-        // Update
-        let ships = window.AISManager.getCurrentShips();
-        Object.keys(ships).forEach(key => {
-          let shipInfo = ships[key];
-          let timeSinceLastUpdate = (now - new Date(shipInfo.lastTmst).getTime()) / (1000 * 60);
-          let marker = this.markers[shipInfo.MMSI];
-          let lastUpdatedMessage = '';
-          if (timeSinceLastUpdate < 1) {
-            lastUpdatedMessage = this.$i18n.t('< 1 minute ago');
-          } else {
-            lastUpdatedMessage = Math.round(timeSinceLastCall) + ' ' + this.$i18n.t('minutes ago');
-          }
-
-          marker.getPopup().setContent(marker.getPopup().getContent().replace(/<label id="last-update">(.+?)<\/label>/, `<label id="last-update">${lastUpdatedMessage}</label>`));
-
+        Object.values(this.ships).forEach(({ marker }) => {
+          if (marker.isPopupOpen()) marker.getPopup().update();
         });
-
-      }, 10 * 1000); // 10 second interval
+      }, 10 * 1000);
     }
   },
 };
@@ -613,6 +629,16 @@ export default {
 .map-card-arrow {
   display: inline-block;
   font-style: normal;
+}
+.map-ship-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+.map-ship svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
 .map-card .map-card-button {
   width: 100%;

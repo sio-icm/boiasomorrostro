@@ -103,7 +103,7 @@ export class AISManager {
     let heading = this.ships[MMSI].heading || 511; // A value of 511 indicates no heading: https://api.vtexplorer.com/docs/response-ais.html
     let sog = this.ships[MMSI].sog || 0;
     // https://api.vtexplorer.com/docs/ref-aistypes.html
-    let shipType = this.ships[MMSI].shipType || "Unknown"
+    let shipType = this.ships[MMSI].shipTypeId ?? "Unknown" // The code (shipType holds its description)
     // https://api.vtexplorer.com/docs/response-ais.html
     let dimensions = this.ships[MMSI].dimensions || { A: -1, B: -1, C: -1, D: -1 };
     let typeOfMessages = this.ships[MMSI].typeOfMessages || [];
