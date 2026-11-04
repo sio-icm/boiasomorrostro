@@ -210,7 +210,7 @@ class SceneManager{
 
     // Create image logo
     let loadingImg = document.createElement("img");
-    loadingImg.src = "/boiasomorrostro/Assets/Logos/icatmar-mini-logo.svg";
+    loadingImg.src = "/boiasomorrostro/img/logos/SIO.png";
     loadingImg.style['max-width'] = '40vw';
     loadingImg.style['max-height'] = '130px';//'18%';
 
@@ -232,12 +232,14 @@ class SceneManager{
       border: none;
       border-radius: 10px`;
 
-    // Create sponsors logos
-    let sponsorsImg = document.createElement("img");
-    sponsorsImg.src = "/boiasomorrostro/img/Logos.png";
-    sponsorsImg.style['max-width'] = '100%';
-    sponsorsImg.style['max-height'] = '20%';
-    sponsorsImg.style.bottom = '10px';
+    // Who makes it, and the project it builds on (credited in full in the About section)
+    let sponsorsImg = document.createElement("div");
+    sponsorsImg.innerHTML = `<div style="font-size: 1.1rem; font-weight: 600">SIO · ICM-CSIC</div>
+      <div style="font-size: 0.8rem; opacity: 0.8">Boia Somorrostro · ICATMAR</div>`;
+    sponsorsImg.style.color = 'white';
+    sponsorsImg.style['text-align'] = 'center';
+    sponsorsImg.style['font-family'] = '"Poppins", sans-serif';
+    sponsorsImg.style.bottom = '30px';
     sponsorsImg.style.position = 'absolute';
 
     // Add to div

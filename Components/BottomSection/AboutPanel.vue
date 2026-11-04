@@ -17,7 +17,26 @@
       <button onclick="window.open('https://cgi-dto.github.io/Barcelona/', '_blank')">Digital Twin of Barcelona's sea state <span class="fa">&#xf08e;</span></button>
     </div> -->
     
-    <!-- References -->
+    <!-- Contact -->
+    <h5>{{ $t('Contact') }}</h5>
+    <p>
+      {{ $t('contact-sio') }} <a href="https://github.com/sio-icm/boiasomorrostro/issues" target="_blank">GitHub</a>.
+      {{ $t('contact-buoy-data') }} {{ emailObs }}@{{ emailProviderIcatmar }}.
+    </p>
+    <div class="logos-container">
+      <img src="img/logos/SIO.png" alt="SIO">
+      <img src="img/logos/icm.png" alt="ICM-CSIC">
+      <img src="img/logos/CSIC.png" alt="CSIC">
+    </div>
+
+    <!-- Original project: this version is built on ICATMAR's -->
+    <h5>{{ $t('Original project') }}</h5>
+    <p>
+      {{ $t('original-1') }} <a href="https://icatmar.github.io/boiasomorrostro/" target="_blank">Boia Somorrostro</a>{{ $t('original-2') }}
+      <a href="https://icatmar.cat" target="_blank">ICATMAR</a> {{ $t('original-3') }}
+      <a href="https://github.com/ICATMAR/boiasomorrostro" target="_blank">{{ $t('original-repository') }}</a>.
+      {{ $t('author-info-gerard') }} {{ email }}@{{ emailProvider }}.
+    </p>
     <p>{{$t('howtocite')}}</p>
 
     <p class="citation">Llorach Tó, G., Martí Comas, A., Pitarch Claramunt, X., Ribera Altimir, J., Molina, D., Casals Baixas, C., ... & Ballabrera Poy, J. (2025). Data flow, infrastructure, harmonization and 3d visualization: the use case of somorrostro’s moored buoy’s deployment. Instrumentation viewpoint, (24), 32-33.</p>
@@ -26,21 +45,12 @@
 
     <p class="citation">Llorach-Tó, G., Martínez, E., Del-Río, J., Simarro, G., Pani, M., Bucchi, A., ... & García-Ladona, E. (2024). 3D Digital Twins of the Ocean: towards an intuitive and realistic visualization of wave parameters (No. EGU24-19105). Copernicus Meetings.</p>
 
-    <!-- Contact -->
-     <h5>{{ $t('Contact') }}</h5>
-    <p>
-      {{ $t('author-info-gerard') }} {{ email }}@{{ emailProvider }}. {{ $t('contact-github-issues') }} <a href="https://github.com/ICATMAR/boiasomorrostro" title="repository" target="_blank">github</a>. {{ $t('contact-icatmar') }} {{ emailObs }}@{{ emailProviderIcatmar }}
-    </p>
-
-    <!-- Attributions -->
-     <!-- Funding agencies icons-->
-     <div class="attributions-container">
+    <!-- The original project's institutions and funders -->
+    <div class="attributions-container">
       <div class="logos-container">
-        <img src="img/logos/ICATMAR512.png">
-        <img src="img/logos/AjuntamentBarcelona.png">
-        <img src="img/logos/Generalitat.png">
-        <img src="img/logos/ICM.png">
-        <img src="img/logos/CSIC.png">
+        <img src="img/logos/ICATMAR512.png" alt="ICATMAR">
+        <img src="img/logos/AjuntamentBarcelona.png" alt="Ajuntament de Barcelona">
+        <img src="img/logos/Generalitat.png" alt="Generalitat de Catalunya">
       </div>
     </div>
     
@@ -143,5 +153,6 @@ p {
   padding-left: 2%;
   padding-right: 2%;
   max-width: 150px;
+  max-height: 60px;
 }
 </style>

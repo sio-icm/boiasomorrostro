@@ -15,13 +15,20 @@ export default en = {
 
 
   "About": "About",
-  "intro": "This application offers a dynamic 3D visualization of the Somorrostro buoy, mirroring its actual conditions and providing access to live meteorological and oceanographic data.",
+  "intro": "This application, by the Oceanographic Engineering Service (SIO) of ICM-CSIC, offers a dynamic 3D visualization of the Somorrostro buoy, mirroring its actual conditions and providing access to live meteorological and oceanographic data.",
   "disclaimer": "The data presented in this application is for informational purposes only. While we strive to ensure accuracy and reliability, we cannot guarantee that the data is free from errors or interruptions. The information should not be used for critical decision-making without additional verification. Use of the application is at your own risk.",
   "concept": "The concept of this web application originates from digital twins: the sea state shown here should be a replica of the real sea. Additionally, the user should be able to change the digital twin and create 'what-if scenarios'.",
-  "howtocite": "If you want to reference this web application please use the folling citations:",
+  "howtocite": "To cite the original project, please use the following references:",
+  "original-repository": "ICATMAR repository",
+  "original-3": "(ICM-CSIC), which also provides the buoy data. Its code is in the",
+  "original-2": ", the digital twin of the buoy created by Gerard Llorach at",
+  "original-1": "This website is a version of",
+  "Original project": "Original project",
+  "contact-buoy-data": "For questions about the buoy data, contact ICATMAR:",
+  "contact-sio": "For questions, comments or bugs in this version, write to us on",
 
   "Contact": "Contact",
-  "author-info-gerard": "For any questions, comments, or suggestions regarding the web application, you can contact ",
+  "author-info-gerard": "Author of the original project:",
   "contact-github-issues": "If you are familiar with GitHub issues, you can report errors through ",
   "author-info-jordi": "For questions regarding the data, its processing, and acquisition, contact ",
   "contact-icatmar": "For anything else, you can contact us through ",
