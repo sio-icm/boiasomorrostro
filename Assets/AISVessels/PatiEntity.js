@@ -4,8 +4,8 @@ import { MovingVessel } from './MovingVessel.js';
 // A patí de vela, the Catalan beach catamaran, built here instead of loaded. As the real one
 // (https://ca.wikipedia.org/wiki/Patí_de_vela, and photos of patins sailing): two tall, narrow,
 // nearly box-sided hulls 5.60 m long, 1.60 m wide overall, flat-decked, with the sail number at the
-// bow and the boat's name at the stern; wooden benches across them (a wide one at the mast, one
-// aft, two strips along); no rudder, no centreboard and no boom: a 6.80 m mast well forward with
+// bow and the boat's name at the stern; five wooden benches across them (wide ones at the mast
+// and aft, three evenly spaced in between) and two strips along; no rudder, no centreboard and no boom: a 6.80 m mast well forward with
 // forestays and shrouds, and a big sail whose long foot reaches almost to the stern, with a window
 // and the sail number. The sailor, in a red life jacket, sits aft on the windward hull.
 // Colours as the Grill (214): black hulls with a white deck, wooden benches.
@@ -189,8 +189,10 @@ class PatiEntity extends MovingVessel {
       });
     });
 
-    // Benches: a wide one at the mast, a wide one aft, a narrow one in between, and two strips along
-    [[MAST_X - 0.05, 0.4], [0.1, 0.12], [-2.25, 0.36]].forEach(([x, width]) => {
+    // Five benches: a wide one at the mast, a wide one aft, and three evenly spaced in between;
+    // and two strips along them
+    const FIRST = MAST_X - 0.05, LAST = -2.25;
+    [[FIRST, 0.4], ...[1, 2, 3].map(i => [FIRST + (LAST - FIRST) * i / 4, 0.3]), [LAST, 0.36]].forEach(([x, width]) => {
       const bench = new THREE.Mesh(new THREE.BoxGeometry(width, 0.04, HULL_SPACING + HULL_WIDTH * 0.6), wood);
       bench.position.set(x, DECK + 0.03, 0);
       this.hull.add(bench);
