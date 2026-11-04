@@ -23,6 +23,7 @@ import { TextMeshEntity } from '/boiasomorrostro/Assets/TextMesh/TextMeshEntity.
 // AIS Vessels
 import { AISVesselsManager } from '/boiasomorrostro/Assets/AISVessels/AISVesselsManager.js';
 import { sunPosition } from '/boiasomorrostro/Assets/Scripts/SunPosition.js';
+import { CityLights } from '/boiasomorrostro/Assets/Terrain/CoastLine/CityLights.js';
 
 // Light by the height of the sun (degrees), interpolated between these states:
 //  tint      multiplies the sky panorama, the air and the sky the sea reflects
@@ -135,6 +136,7 @@ class SceneManager{
     // Light of the time of day, then the ocean reflection of the sky and the coastline (tinted by it),
     // once both are loaded; again every few minutes
     Promise.all([this.skybox.loaded, this.coastLine.loaded]).then(() => {
+      this.cityLights = new CityLights(this.coastLine.root);
       this.updateSky();
       this.skyInterval = setInterval(() => this.updateSky(), SKY_UPDATE_MINUTES * 60 * 1000);
     });
@@ -623,6 +625,8 @@ class SceneManager{
     this.sunLight.color.setRGB(...sky.sun);
     this.sunLight.position.copy(sunDirection).multiplyScalar(100);
     this.sunLight.target.position.set(0, 0, 0);
+    // City lights: on from a little after sunset (sun 1º below the horizon) to full at 8º below
+    this.cityLights?.setNight(Math.min(1, Math.max(0, (-elevation - 1) / 7)));
     // Sea
     this.ocean.setSky({ sunDirection, sunColor: sky.sun, daylight: sky.daylight, skyTint: sky.tint });
     this.updateOceanReflection();
