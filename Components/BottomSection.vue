@@ -1,34 +1,27 @@
 <template>
-  <!-- Container -->
-  <div id="bottom-section" :class="[isSectionOpen ? isMenuFullscreen ? 'bottom-section-fullscreen' : 'bottom-section-open' : 'bottom-section-closed']">
-    <!-- Button to open and close section -->
-    <div class="section-opener-container">
-      <button class="section-opener-button clickable" @click="bottomSectionClicked">
-        <span>Menu</span>
-        <span class="fa" :class="[isSectionOpen ? 'rotate180' : 'rotate0']">&#xf106;</span>
-      </button>
+  <!-- Data panel, docked at the bottom: tabs on top, and its height changes between collapsed
+       (tabs only), compact and fullscreen by dragging or tapping the handle, or with the buttons -->
+  <div id="bottom-section" :class="'panel-' + $gui.panelState">
+    <div class="panel-header">
+      <div class="panel-handle" @pointerdown="dragStart" :title="$t(isSectionOpen ? 'Collapse' : 'Expand')"><span></span></div>
+      <div class="panel-bar">
+        <div class="panel-tabs button-group">
+          <button v-for="el in menu" :key="el.id" class="clickable"
+            :class="{ 'selectedOption': $gui.selectedSection === el.id && isSectionOpen }"
+            @click="sectionClicked(el.id)"><span>{{ $t(el.title) }}</span></button>
+        </div>
+        <div class="panel-size-buttons">
+          <i v-if="isSectionOpen" class="clickable fa-solid" :class="isMenuFullscreen ? 'fa-compress' : 'fa-expand'"
+            :title="$t(isMenuFullscreen ? 'Reduce' : 'Enlarge')" @click="setPanelState(isMenuFullscreen ? 'compact' : 'fullscreen')"></i>
+          <i class="clickable fa-solid" :class="isSectionOpen ? 'fa-chevron-down' : 'fa-chevron-up'"
+            :title="$t(isSectionOpen ? 'Collapse' : 'Expand')" @click="setPanelState(isSectionOpen ? 'hidden' : 'compact')"></i>
+        </div>
+      </div>
     </div>
 
-
-    <div class="menu-section-container" v-show="isSectionOpen">
-
-      <!-- Cross and top-left icons -->
-      <div class="horizontal top-left-icons">
-        <i class="clickable close-x fa-solid fa-xmark" @click="closeClicked"></i>
-        <i class="clickable close-x" :class="isMenuFullscreen ? 'fa-solid fa-compress' : 'fa-solid fa-expand'" @click="fullscreenClicked"></i>
-      </div>
-
-      <!-- Selected section -->
-      <div class="section-content">
-        <component :is="selectedSection.component" />
-      </div>
-
-      <!-- Bottom options -->
-      <div class="horizontal wrap button-group bottom-bar">
-        <button v-for="el in menu" :key="el.id" class="clickable"
-          :class="{ 'selectedOption': $gui.selectedSection === el.id }"
-          @click="sectionClicked(el.id)"><span>{{ $t(el.title) }}</span></button>
-      </div>
+    <!-- Selected section -->
+    <div class="section-content" v-show="isSectionOpen">
+      <component :is="selectedSection.component" />
     </div>
   </div>
 </template>
@@ -162,30 +155,31 @@ export default {
     }
   },
   methods: {
-    // USER ACTIONS
-    // Switches the visible tab - each one has a different natural height, so
-    // Canvas3D needs to resize to whatever space that leaves it once the new
-    // tab has rendered.
+    // A tab opens its section, and the panel if it was collapsed
     sectionClicked: function (id){
       this.$gui.selectedSection = id;
+      if (!this.isSectionOpen) this.setPanelState('compact');
       this.$nextTick(() => window.dispatchEvent(new Event('resize')));
     },
-    // Shows / Hides bottom section
-    bottomSectionClicked: function (e){
-      this.$gui.panelState = this.$gui.panelState == 'hidden' ? 'compact' : 'hidden';
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 750);
+    setPanelState: function (state){
+      this.$gui.panelState = state;
+      // The 3D canvas and the map resize once the panel has its new height
+      this.$nextTick(() => window.dispatchEvent(new Event('resize')));
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 400);
     },
-    // Top-left-icons
-    closeClicked: function(){
-      this.bottomSectionClicked();
-    },
-    fullscreenClicked: function(){
-      this.$gui.panelState = this.$gui.panelState == 'fullscreen' ? 'compact' : 'fullscreen';
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 750);
+    // Handle: a tap opens or collapses it; dragging up or down steps through
+    // collapsed, compact and fullscreen
+    dragStart: function (e){
+      const startY = e.clientY;
+      const states = ['hidden', 'compact', 'fullscreen'];
+      const up = (end) => {
+        window.removeEventListener('pointerup', up);
+        const dy = end.clientY - startY;
+        const index = states.indexOf(this.$gui.panelState);
+        if (Math.abs(dy) < 8) this.setPanelState(this.isSectionOpen ? 'hidden' : 'compact');
+        else this.setPanelState(states[Math.max(0, Math.min(2, index + (dy < 0 ? 1 : -1) * (Math.abs(dy) > 250 ? 2 : 1)))]);
+      };
+      window.addEventListener('pointerup', up);
     },
   },
   computed: {
@@ -228,104 +222,85 @@ export default {
 #bottom-section {
   position: relative;
   width: 100%;
-  background: rgb(200 240 255);;
-}
-
-/* max-height (not height) so the section shrink-wraps its content - Data,
-   Map and About each end up only as tall as they need (see their own
-   max-height/clamp() for Map/About). The generous cap only exists so the
-   open/close transition below has two numeric endpoints to animate between.
-   No overflow:hidden here - .top-left-icons intentionally pokes out above
-   this box (see its negative top), and clipping would cut it off. */
-.bottom-section-open {
-  max-height: 500px;
-  transition: all 0.7s ease-in-out;
-  /* Never squeezed below its content's need - Canvas3D (the other flex item
-     in .full-screen-container) absorbs the size change instead. Fullscreen
-     keeps the default flex-shrink: it relies on being squeezed to make its
-     disproportionate height:900% dominate while still leaving Canvas3D some
-     space (see .bottom-section-fullscreen). */
-  flex-shrink: 0;
-}
-.bottom-section-fullscreen{
-  max-height: 87vh;
-  transition: all 0.7s ease-in-out;
-}
-
-.bottom-section-closed {
-  max-height: 0;
-  transition: all 0.7s ease-in-out;
-}
-
-.section-opener-container {
-  display: flex;
-  justify-content: center;
-  translate: 0px -60px;
-  height: 0px;
-}
-.section-opener-container > button {
-  height: 40px;
-  padding-left: 20px;
-  padding-right: 20px;
-  border: solid;
-}
-.rotate0 {
-  rotate: 0deg;
-  transition: all 0.7s ease-in-out;
-}
-.rotate180 {
-  rotate: 180deg;
-  transition: all 0.7s ease-in-out;
-}
-
-
-.menu-section-container {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  /* In normal flow (not absolute) so #bottom-section's height is driven by
-     this container's actual content instead of a fixed percentage. */
+  flex-shrink: 0;
+  background: rgb(200 240 255);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+  margin-top: -14px; /* Over the 3D view's bottom edge, under the rounded corners */
+  z-index: 5;
 }
-/* Fullscreen: #bottom-section is genuinely tall (see .bottom-section-fullscreen),
-   so fill it - this stretches .section-content (flex:1 below) to match, which in
-   turn lets Map/About grow to cover it (their own "fullscreen" class) and pushes
-   .bottom-bar down to the actual bottom of the page instead of floating right
-   under a capped-height panel. */
-.bottom-section-fullscreen .menu-section-container {
-  height: 100%;
+/* Fullscreen: tall, leaving a strip of the 3D view (Canvas3D absorbs the rest) */
+.panel-fullscreen {
+  height: 87vh;
 }
 
-/* Above the section content, like the cross of the VISOC data timeline */
-.top-left-icons {
-  position: absolute;
-  top: -26px;
-  left: 8px;
-  gap: 6px;
-  z-index: 20;
+/* HEADER: handle and tabs */
+.panel-header {
+  background: var(--blue);
+  border-radius: 14px 14px 0 0;
 }
-.top-left-icons .close-x {
+.panel-handle {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 2px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.panel-handle span {
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.7);
+}
+.panel-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 4px;
+}
+.panel-tabs {
+  flex: 1;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.panel-tabs > button {
+  flex-shrink: 0;
+  font-size: small;
+  padding: 2px 12px;
+}
+.panel-size-buttons {
+  display: flex;
+  gap: 4px;
+}
+.panel-size-buttons i {
   width: 30px;
   height: 30px;
-  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  border-radius: 50%;
+}
+.panel-size-buttons i:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
+/* CONTENT */
 .section-content {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   overflow: auto;
   width: 100%;
   min-height: 100px;
-  max-height: 87vh;
+  max-height: 55vh;
 }
-
-.bottom-bar {
-  border-top: 1px white solid;
-  background: var(--blue);
-}
-.bottom-bar > * {
-  padding-left: 10px;
-  font-size: small;
+.panel-fullscreen .section-content {
+  flex: 1;
+  max-height: none;
 }
 </style>
