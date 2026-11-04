@@ -29,11 +29,12 @@ export class AISManager {
 
     // Connection
     this.ws;
-    // if (window.location.href.includes('localhost') || window.location.href.includes('127.0.0.1')) {
-    //   this.ws = new WebSocket('ws://localhost:30521');
-    // } else {
-    this.ws = new WebSocket('wss://api.icatmar.cat/ais');
-    // }
+    // ICATMAR's server only accepts its own website: locally, ais_relay.py serves the same feed from aisstream.io
+    if (['localhost', '127.0.0.1'].includes(location.hostname)) {
+      this.ws = new WebSocket('ws://localhost:8766');
+    } else {
+      this.ws = new WebSocket('wss://api.icatmar.cat/ais');
+    }
     this.isCreated = true;
 
     // General connection events
@@ -103,7 +104,7 @@ export class AISManager {
     let heading = this.ships[MMSI].heading || 511; // A value of 511 indicates no heading: https://api.vtexplorer.com/docs/response-ais.html
     let sog = this.ships[MMSI].sog || 0;
     // https://api.vtexplorer.com/docs/ref-aistypes.html
-    let shipType = this.ships[MMSI].shipType || "Unknown"
+    let shipType = this.ships[MMSI].shipTypeId ?? "Unknown" // The code (shipType holds its description)
     // https://api.vtexplorer.com/docs/response-ais.html
     let dimensions = this.ships[MMSI].dimensions || { A: -1, B: -1, C: -1, D: -1 };
     let typeOfMessages = this.ships[MMSI].typeOfMessages || [];

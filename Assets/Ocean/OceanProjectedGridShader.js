@@ -43,6 +43,9 @@
 export const OceanProjectedGridVertShader = /* glsl */ `
         
   #define PI 3.141592653589793
+  // Shortest wavelength drawn, relative to the distance to the camera (fades between MIN and MAX)
+  #define ANTIALIAS_MIN 0.08
+  #define ANTIALIAS_MAX 0.2
   precision lowp float;
 
   uniform float u_time;
@@ -64,6 +67,8 @@ export const OceanProjectedGridVertShader = /* glsl */ `
   varying vec3 v_Normal;
   varying mat3 v_TBN;
   varying vec4 v_OceanColor;
+  // Wave height (displaced y), used for crest colour and foam
+  varying float v_height;
   // SSR
   varying float v_distToCam;
 
@@ -78,6 +83,13 @@ export const OceanProjectedGridVertShader = /* glsl */ `
     float amplitude = max(waveParams.y, 0.01) / 2.0;
     float wavelength = amplitude * 2.0 * PI / steepness;
     vec2 direction = waveParams.zw;
+
+    // Anti-aliasing: fade out waves too short for the grid to draw at this distance.
+    // Otherwise they alias into thin parallel stripes along the bigger waves
+    float distToCamera = distance(position, cameraPosition);
+    float aliasingFade = smoothstep(ANTIALIAS_MIN * distToCamera, ANTIALIAS_MAX * distToCamera, wavelength);
+    amplitude *= aliasingFade;
+    steepness *= aliasingFade;
 
     // Wave coefficient
     float k = 2.0 * PI / wavelength;
@@ -205,7 +217,8 @@ export const OceanProjectedGridVertShader = /* glsl */ `
 
     // Normal
     vec3 normal = normalize(cross(binormal, tangent));
-    v_Normal = normalize(normal.xyz); 
+    v_Normal = normalize(normal.xyz);
+    v_height = modPos.y;
 
     // World position
     //vec4 worldPosition = modelMatrix * vec4(modPos, 1.0);
@@ -237,16 +250,21 @@ export const OceanProjectedGridVertShader = /* glsl */ `
 
 export const OceanProjectedGridFragShader = /* glsl */`
 
-  precision lowp float;
+  precision mediump float; // lowp is too coarse for the sharp sun glint
 
   varying vec3 v_WorldPosition;
   varying vec3 v_Normal;
   varying mat3 v_TBN;
+  varying float v_height;
 
   varying float v_distToCam;
 
   uniform sampler2D u_normalTexture;
-  uniform float u_time;
+  uniform lowp float u_time; // Same precision as in the vertex shader (required for shared uniforms)
+  uniform lowp float u_steepnessFactor; // Grows with the wind (see Canvas3D.vue), drives the amount of foam
+  uniform vec3 u_sunDirection;
+  uniform samplerCube u_reflectionMap;
+  uniform float u_hasReflectionMap;
   // Fog
   uniform vec3 u_fogUnderwaterColor;
   uniform float u_fogDensity;
@@ -257,6 +275,30 @@ export const OceanProjectedGridFragShader = /* glsl */`
   // https://github.com/dli/waves/blob/master/simulation.js
   vec3 hdr (vec3 color, float exposure) {
       return 1.0 - exp(-color * exposure);
+  }
+
+  // ACES filmic tone mapping (Narkowicz approximation): more contrast and natural highlights than hdr()
+  // https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+  vec3 acesToneMapping (vec3 color) {
+      return clamp((color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14), 0.0, 1.0);
+  }
+
+  // Value noise, for the foam pattern. Hash without sine, which keeps precision in mediump
+  // https://www.shadertoy.com/view/4djSRW
+  float hash (vec2 p) {
+      vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+      p3 += dot(p3, p3.yzx + 33.33);
+      return fract((p3.x + p3.y) * p3.z);
+  }
+  float valueNoise (vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+                 mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+  }
+  float foamNoise (vec2 p) {
+      return 0.6 * valueNoise(p) + 0.3 * valueNoise(p * 2.7 + 5.2) + 0.1 * valueNoise(p * 7.1 + 1.7);
   }
 
 
@@ -293,60 +335,81 @@ export const OceanProjectedGridFragShader = /* glsl */`
     //vec3 normal = normalize(vec3(n1.xy + n2.xy, n1.z*n2.z)); // Whiteout blending
     //vec3 normal = v_Normal;
 
-    // Sun position
-    vec3 sunPosition = vec3(0.0, 1.0, 0.0);
+    // Sun (direction towards the sun)
+    vec3 sunDir = normalize(u_sunDirection);
+    vec3 sunColor = vec3(1.0, 0.95, 0.85);
 
-    // Ocean color
-    vec3 oceanColor = vec3(0.016, 0.064, 0.192);//(0.2, 0.2, 1.0);  
-    
-    // Diffuse color
-    vec3 diffuseColor = oceanColor * max(0.0, dot(normalize(sunPosition), geoNormal)); // NORMAL WITHOUT TEXTURE
+    // Water colours: deep body and the turquoise light that passes through thin crests
+    vec3 deepColor = vec3(0.004, 0.05, 0.12);
+    vec3 scatterColor = vec3(0.0, 0.40, 0.42);
 
-    // Ambient color
-    vec3 ambientColor = vec3(0.0,0.0,0.1);
-
-    // Sky color
-    vec3 skyColor = vec3(0.51, 0.75, 1.0);
+    // Sky colours for the reflection: pale at the horizon, deeper blue above
+    vec3 skyHorizonColor = vec3(0.70, 0.85, 0.95);
+    vec3 skyZenithColor = vec3(0.25, 0.50, 0.85);
 
 
     // Underwater factor (if camera is above or below water)
     float underwaterFactor = (abs(cameraPosition.y)/cameraPosition.y)*0.5 + 0.5;
     // Fog underwater (Fog exp 2)
     float fogDepth = distance(v_WorldPosition, cameraPosition);
-    float fogDensity = u_fogDensity - u_fogDensity * 0.5 * underwaterFactor;
+    float fogDensity = u_fogDensity - u_fogDensity * 0.75 * underwaterFactor; // Lighter haze above water, so the horizon stays sharp
     float fogFactor = 1.0 - exp( - fogDensity * fogDensity * fogDepth * fogDepth );
     vec3 fogAirColor = vec3(0.8, 0.93, 1.0);
     vec3 fogColor = mix(u_fogUnderwaterColor, fogAirColor, underwaterFactor) ;
 
     
-    // Specular color
-    // -sunPosition = Incident ray
-    vec3 reflection = normalize(reflect(normalize(-sunPosition), normal)); 
-    vec3 cameraRay = v_WorldPosition - cameraPosition; // Camera and worldpos are correct
-    float specIncidence = max(0.0, dot(normalize(-cameraRay), reflection));
-    float shiny = 80.0;
-    float specFactor = 5.0 * pow(specIncidence, shiny);
-    vec3 specularColor = specFactor * vec3(1.0,1.0,1.0) ; // * sunColor
+    // Direction from the surface to the camera
+    vec3 viewDir = normalize(cameraPosition - v_WorldPosition);
+    // Geometric normal with a bit of the small ripples, for the reflection/refraction split
+    vec3 fresnelNormal = normalize(mix(geoNormal, normal, 0.4));
 
-
-
-    // Fresnel - CAMERARAY NEEDS A HACK? SWAP X BY Z AND NEGATE FIRST COMPONENT?
+    // Fresnel (Schlick): grazing angles reflect the sky, steep angles show the water body
     // https://github.com/dli/waves/blob/master/simulation.js
-    // https://www.shadertoy.com/view/4scSW4 with named variables
-    vec3 camR = normalize(-cameraRay); 
-    float dotOperation = dot(geoNormal, camR); // USE NORMAL WITHOUT TEXTURE (from geometry)
-    float fresnel = 0.02 + 0.98 * pow(1.0 - (dotOperation), 5.0);
-
+    float fresnel = 0.02 + 0.98 * pow(1.0 - abs(dot(fresnelNormal, viewDir)), 5.0);
     fresnel = clamp(fresnel, 0.0, 1.0);
-    vec3 skyFresnel = fresnel * skyColor;
-    vec3 waterFresnel = (1.0 - fresnel) * oceanColor;//(1.0 - fresnel) * u_oceanColor * u_skyColor * diffuse;
-    //vec3 waterFresnel = (1.0 - fresnel) * (oceanColor*3.0 + skyColor + diffuseColor) / 5.0;
-    
 
-    vec3 color = skyFresnel*2.0 + waterFresnel*2.0 + diffuseColor + specularColor;
-    
+    // Sky reflection: gradient from horizon to zenith along the reflected ray
+    vec3 reflectedRay = reflect(-viewDir, fresnelNormal); // Smoother normal, so the coastline shows in the reflection
+    vec3 skyColor = mix(skyHorizonColor, skyZenithColor, pow(clamp(reflectedRay.y, 0.0, 1.0), 0.6));
+    // Real sky and coastline, when the cubemap is ready. Rays pointing down are lifted to the horizon.
+    // The cubemap is linear, while this shader works in display colours
+    vec3 envRay = normalize(vec3(reflectedRay.x, max(reflectedRay.y, 0.01), reflectedRay.z));
+    vec3 envColor = pow(textureCube(u_reflectionMap, envRay).rgb, vec3(1.0 / 2.2));
+    skyColor = mix(skyColor, envColor, u_hasReflectionMap);
 
-    color = hdr(color, 0.99); // From David Li https://github.com/dli/waves/blob/master/simulation.js
+    // Water body: dark blue, lit a little by the sun
+    float sunDiffuse = max(0.0, dot(geoNormal, sunDir));
+    vec3 waterColor = deepColor * (0.6 + 0.8 * sunDiffuse);
+
+    // Light through the crests (fake subsurface scattering): stronger on high waves
+    // and when looking towards the sun, through the back of the wave
+    float crest = smoothstep(-0.05, 0.35, v_height);
+    float backLight = pow(clamp(dot(-viewDir, sunDir), 0.0, 1.0), 3.0);
+    float facing = pow(1.0 - max(0.0, dot(geoNormal, viewDir)), 2.0); // wave faces seen side-on
+    waterColor += scatterColor * crest * (0.25 + 0.75 * backLight) * (0.4 + 0.6 * facing);
+
+    // Sun glint: a sharp highlight plus a broad soft sheen (Blinn-Phong)
+    vec3 halfVector = normalize(sunDir + viewDir);
+    float nDotH = max(0.0, dot(normal, halfVector));
+    vec3 specularColor = sunColor * (6.0 * pow(nDotH, 600.0) + 0.25 * pow(nDotH, 60.0));
+
+    vec3 color = mix(waterColor, skyColor * 1.3, fresnel) + specularColor;
+
+    // Foam on the tips of the highest and steepest crests, more of it with more wind.
+    // Drawn as lace (noise ridges) that fills in as coverage grows, and faded with distance to avoid flickering
+    float slope = 1.0 - geoNormal.y;
+    float foamMask = smoothstep(0.16, 0.34, v_height) * (0.4 + 0.6 * smoothstep(0.03, 0.2, slope));
+    float windFoam = smoothstep(0.06, 0.3, u_steepnessFactor);
+    float breaking = smoothstep(0.3, 0.75, valueNoise(v_WorldPosition.xz * 0.12)); // only some stretches of each crest break
+    float coverage = foamMask * breaking * (0.3 + 0.7 * windFoam);
+    float laceNoise = 0.7 * foamNoise(v_WorldPosition.xz * 3.0) + 0.3 * foamNoise(v_WorldPosition.xz * 9.0 + 3.1);
+    float lace = 1.0 - abs(laceNoise * 2.0 - 1.0); // 1 on the noise ridges
+    float foam = smoothstep(1.0 - coverage, 1.0 - coverage + 0.12, lace);
+    foam *= 1.0 - smoothstep(40.0, 120.0, distance(v_WorldPosition, cameraPosition));
+    vec3 foamColor = vec3(0.92, 0.96, 0.98) * (0.75 + 0.35 * sunDiffuse);
+    color = mix(color, foamColor, foam * 0.8);
+
+    color = acesToneMapping(color);
 
     // Add fog
     color = mix( color, fogColor, fogFactor );

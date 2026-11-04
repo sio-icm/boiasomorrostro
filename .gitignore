@@ -1,0 +1,2 @@
+# Local secrets (e.g. the aisstream.io key used by ais_relay.py)
+.env

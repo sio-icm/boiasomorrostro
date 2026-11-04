@@ -47,6 +47,7 @@ import ObservationsSection from './BottomSection/ObservationsSection.vue';
 import WindSection from './BottomSection/WindSection.vue';
 import MapBuoyLocation from './BottomSection/MapBuoyLocation.vue';
 import AboutPanel from './BottomSection/AboutPanel.vue';
+import HistorySection from './BottomSection/HistorySection.vue';
 
 
 export default {
@@ -70,6 +71,11 @@ export default {
           title: 'Forecast',
           id: 'forecast',
           component: 'forecastSection',
+        },
+        {
+          title: 'History',
+          id: 'history',
+          component: 'historySection',
         },
         {
           title: 'Wind',
@@ -205,6 +211,7 @@ export default {
     "windSection": WindSection,
     "mapBuoyLocation": MapBuoyLocation,
     "about": AboutPanel,
+    "historySection": HistorySection,
     
   }
 }

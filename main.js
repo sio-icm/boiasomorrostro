@@ -43,12 +43,21 @@ window.WMTSTileManager = new WMTSTileManagerClass();
 import AISManagerClass from './Assets/Scripts/AIS/AISManager.js';
 window.AISManager = new AISManagerClass();
 
+// Wind and current forecasts and their animated particles, for the map (see MapBuoyLocation.vue).
+// Exposed globally because the .vue loader cannot import ES modules
+import { ForecastField } from './Assets/Map/ForecastField.js';
+import { ParticlesLayer, COLOR_SCALES } from './Assets/Map/ParticlesLayer.js';
+window.ForecastField = ForecastField;
+window.ParticlesLayer = ParticlesLayer;
+window.PARTICLES_COLOR_SCALES = COLOR_SCALES;
+
 // GUI and data
 import GUIManager from './Assets/Scripts/GUIManager.js';
 import FetchManager from './Assets/Scripts/data/FetchManager.js';
 import DataService from './Assets/Scripts/data/DataService.js';
 window.GUIManager = Vue.reactive(new GUIManager());
 window.DataService = new DataService(FetchManager);
+window.FetchManager = FetchManager; // For the map's forecasts (see MapBuoyLocation.vue)
 
 // Declare translations
 const i18n = VueI18n.createI18n({

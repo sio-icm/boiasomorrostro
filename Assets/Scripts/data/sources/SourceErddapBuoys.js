@@ -7,7 +7,8 @@ import Source from './Source.js';
 // metadata/discovery only), scoped to buoyId so this app - dedicated to one
 // buoy - doesn't pull data for every other buoy the server happens to host.
 
-const PROXY_URL = 'https://api.icatmar.cat/proxy/';
+// On localhost, use dev_server.py's proxy (the ICATMAR one doesn't allow localhost)
+const PROXY_URL = ['localhost', '127.0.0.1'].includes(location.hostname) ? '/proxy/' : 'https://api.icatmar.cat/proxy/';
 const DAYS_LOADED = 3;
 // ERDDAP columns that are coordinates/dimensions, not sensor readings - never
 // auto-fetched as a data variable in their own right (a `depth` column is
@@ -90,7 +91,10 @@ class SourceErddapBuoys extends Source {
   // loadSensorData / sensorLoadingPromise).
   async discover() {
     const allDatasets = await this.fetchAllDatasets();
-    const buoyDatasets = allDatasets.filter(d => d['datasetID'].startsWith(this.datasetCommonKey));
+    // Only buoyId's sensors when given: the server hosts the whole network, and asking for
+    // every other buoy's metadata took ~100 requests that nothing used
+    const prefix = this.buoyId ? `${this.datasetCommonKey}${this.buoyId}_` : this.datasetCommonKey;
+    const buoyDatasets = allDatasets.filter(d => d['datasetID'].startsWith(prefix));
 
     // Fetch every sensor's info in parallel, but only group them into buoys
     // afterward, synchronously - doing the grouping inside the parallel map

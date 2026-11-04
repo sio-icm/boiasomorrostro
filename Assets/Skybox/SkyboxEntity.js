@@ -5,9 +5,11 @@ class SkyboxEntity {
 
   constructor(scene){
     const gltfLoader = new GLTFLoader();
-    gltfLoader.load('/boiasomorrostro/Assets/Skybox/skybox.glb', (gltf) => { // '../Assets/Skybox/skybox.glb'
+    // Resolves once the skybox is in the scene (see SceneManager.updateOceanReflection)
+    this.loaded = new Promise(resolve => gltfLoader.load('/boiasomorrostro/Assets/Skybox/skybox.glb', (gltf) => { // '../Assets/Skybox/skybox.glb'
       // GLTF scene
       const root = gltf.scene;
+      this.root = root;
       // Scale
       root.scale.multiplyScalar(1000);
       // Scene direction fix
@@ -16,7 +18,8 @@ class SkyboxEntity {
       root.position.y = -1;
 
       scene.add(root);
-    });
+      resolve();
+    }));
 
     scene.background = new THREE.Color(0x47A0B9);
 

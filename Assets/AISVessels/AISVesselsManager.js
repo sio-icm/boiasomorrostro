@@ -1,5 +1,9 @@
 import { VesselEntity, TankerVesselEntity, CargoVesselEntity, CruiseBigEntity } from "./VesselEntity.js";
 
+// Ships further than this from the buoy aren't drawn: they'd be lost in the haze anyway,
+// and each one costs a model in the scene
+const MAX_DISTANCE = 10000; // m
+
 class AISVesselsManager {
 
   constructor(scene, LONGITUDE, LATITUDE) {
@@ -73,7 +77,14 @@ class AISVesselsManager {
 
 
 
+  isNearby = (shipInfo) => {
+    const north = (shipInfo.latitude - this.LATITUDE) * 111320;
+    const east = (shipInfo.longitude - this.LONGITUDE) * 111320 * Math.cos(this.LATITUDE * Math.PI / 180);
+    return Math.hypot(north, east) < MAX_DISTANCE;
+  }
+
   createShip = (shipInfo, scene) => {
+    if (!this.isNearby(shipInfo)) return;
     // Create ship entity
     let shipEntity
 

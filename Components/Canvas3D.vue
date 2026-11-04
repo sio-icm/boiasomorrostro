@@ -21,7 +21,8 @@ export default {
     
   },
   mounted() {
-    this.sceneManager = new window.SceneManager(this.$refs.canvas3D);
+    // Also global, for the map's view cone (see MapBuoyLocation.vue)
+    this.sceneManager = window.sceneManager = new window.SceneManager(this.$refs.canvas3D);
     this.sceneManager.startRender();
     this.sceneManager.windowWasResized();
 
@@ -74,14 +75,16 @@ export default {
       this.generateSwell(dataValues['Secondary swell wave significant height'].value, dataValues['Secondary swell wave direction'].value, 1);
 
       // Flag
-      this.sceneManager.flag.showFlag();
-      // Phillips, O.M. 1957. On the generation of waves by turbulent wind. Journal of Fluid Mechanics. 2 (5): 417–445.
-      // Hs = C * (U^2 / g)
-      let wwHm0 = dataValues['Wind wave significant height'].value;
-      let C = 0.08;
-      let U = Math.sqrt(wwHm0 * 9.81 / C); // wind speed in m/s
-      this.sceneManager.flag.setWindParameters('windSpeed', U * 3.6); // km/h
-      this.sceneManager.flag.setWindParameters('windDirection', dataValues['Wind wave direction'].value);
+      if (this.sceneManager.flag) {
+        this.sceneManager.flag.showFlag();
+        // Phillips, O.M. 1957. On the generation of waves by turbulent wind. Journal of Fluid Mechanics. 2 (5): 417–445.
+        // Hs = C * (U^2 / g)
+        let wwHm0 = dataValues['Wind wave significant height'].value;
+        let C = 0.08;
+        let U = Math.sqrt(wwHm0 * 9.81 / C); // wind speed in m/s
+        this.sceneManager.flag.setWindParameters('windSpeed', U * 3.6); // km/h
+        this.sceneManager.flag.setWindParameters('windDirection', dataValues['Wind wave direction'].value);
+      }
     })
 
 
@@ -114,17 +117,17 @@ export default {
         }
       }
       // Wind
+      // Ocean steepness
+      if (dataInTimestamp['WSPD'] && this.sceneManager.ocean){
+        let windKMH = dataInTimestamp['WSPD'] * 3.6;
+        let steepness = 0.05 + 0.25 * Math.min(1, windKMH / 25);
+        this.sceneManager.ocean.updateSteepness(steepness);
+      }
       if (this.sceneManager.flag){
         if (dataInTimestamp['WSPD']){
           this.sceneManager.flag.showFlag();
           this.sceneManager.flag.setWindParameters('windSpeed', dataInTimestamp['WSPD'] * 3.6); // km/h
           this.sceneManager.flag.setWindParameters('windDirection', dataInTimestamp['WDIR']);
-          // Ocean steepness
-          if (this.sceneManager.ocean){
-            let windKMH = dataInTimestamp['WSPD'] * 3.6;
-            let steepness = 0.05 + 0.25 * Math.min(1, windKMH / 25);
-            this.sceneManager.ocean.updateSteepness(steepness);
-          }
         } else { // Hide flag when there is no wind data
           this.sceneManager.flag.hideFlag();
         }

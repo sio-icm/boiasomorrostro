@@ -15,17 +15,19 @@ class VesselEntity {
     this.load(scene, shipInfo, onload);
   }
 
+  // Each model is downloaded and parsed once (a promise per URL), then cloned for every ship
+  // that uses it: there can be dozens of ships, mostly with the same model
+  static models = {};
+
   // Default load function
   load = (scene, shipInfo, onload) => {
-    // Load the model and add it to the scene
-    const manager = new THREE.LoadingManager(); // Empty manager
-    //const loader = new OBJLoader(manager);
-    this.loader = new GLTFLoader(manager);
     // TODO: use shipType to load different models
-    //loader.load('/boiasomorrostro/Assets/AISVessels/Vessel.obj', (obj) => {
-    this.loader.load(this.gltfURL, (obj) => { // '../Assets/Skybox/skybox.glb'
+    if (VesselEntity.models[this.gltfURL] == undefined) {
+      VesselEntity.models[this.gltfURL] = new Promise(resolve => new GLTFLoader(new THREE.LoadingManager()).load(this.gltfURL, resolve));
+    }
+    VesselEntity.models[this.gltfURL].then(gltf => {
       this.isLoaded = true;
-      this.addToScene(obj, scene, shipInfo, onload);
+      this.addToScene({ ...gltf, scene: gltf.scene.clone(true) }, scene, shipInfo, onload);
     });
   }
 

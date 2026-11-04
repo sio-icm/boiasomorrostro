@@ -116,14 +116,16 @@ class SceneManager{
 
     // Ocean
     this.ocean = new OceanEntity(scene);
+    // Ocean reflection of the sky and the coastline, once both are loaded
+    Promise.all([this.skybox.loaded, this.coastLine.loaded]).then(() => this.updateOceanReflection());
     // Buoy
     this.somorrostroBuoy = new SomorrostroBuoyEntity(scene);
 
     // Flag
-    this.flag = new FlagEntity(scene, () => {
-      this.flag.root.position.y = -1;
-      this.loadFlagWind();
-    });
+    // this.flag = new FlagEntity(scene, () => {
+    //   this.flag.root.position.y = -1;
+    //   this.loadFlagWind();
+    // });
 
 
     // Mooring
@@ -208,8 +210,10 @@ class SceneManager{
 
     // Create image logo
     let loadingImg = document.createElement("img");
-    loadingImg.src = "/boiasomorrostro/Assets/Logos/icatmar-mini-logo.svg";
-    loadingImg.style['max-width'] = '40vw';
+    // The SIO's logo in the browser's language, as the language selector picks it
+    const lang = ['es', 'ca', 'en'].find(code => navigator.language.startsWith(code)) || 'en';
+    loadingImg.src = `/boiasomorrostro/img/logos/SIO-${lang}-white.png`;
+    loadingImg.style['max-width'] = '70vw';
     loadingImg.style['max-height'] = '130px';//'18%';
 
     // Create progress bar
@@ -230,12 +234,14 @@ class SceneManager{
       border: none;
       border-radius: 10px`;
 
-    // Create sponsors logos
-    let sponsorsImg = document.createElement("img");
-    sponsorsImg.src = "/boiasomorrostro/img/Logos.png";
-    sponsorsImg.style['max-width'] = '100%';
-    sponsorsImg.style['max-height'] = '20%';
-    sponsorsImg.style.bottom = '10px';
+    // Who makes it, and the project it builds on (credited in full in the About section)
+    let sponsorsImg = document.createElement("div");
+    sponsorsImg.innerHTML = `<div style="font-size: 1.1rem; font-weight: 600">ICM-CSIC</div>
+      <div style="font-size: 0.8rem; opacity: 0.8">Boia Somorrostro · ICATMAR</div>`;
+    sponsorsImg.style.color = 'white';
+    sponsorsImg.style['text-align'] = 'center';
+    sponsorsImg.style['font-family'] = '"Poppins", sans-serif';
+    sponsorsImg.style.bottom = '30px';
     sponsorsImg.style.position = 'absolute';
 
     // Add to div
@@ -343,6 +349,39 @@ class SceneManager{
 
 
 
+  // Compass bearing the camera looks at, in degrees (0 north, 90 east). In the scene, north is -z and east +x
+  getCameraBearing = function(){
+    const target = this.controls.target, position = this.camera.position;
+    return (Math.atan2(target.x - position.x, position.z - target.z) * 180 / Math.PI + 360) % 360;
+  }
+
+  // Horizontal field of view of the camera, in degrees
+  getCameraHorizontalFOV = function(){
+    const verticalFOV = this.camera.fov * Math.PI / 180;
+    return 2 * Math.atan(Math.tan(verticalFOV / 2) * this.camera.aspect) * 180 / Math.PI;
+  }
+
+  // Turns the camera around its target to look at a compass bearing, keeping its distance and height
+  faceBearing = function(bearing){
+    const target = this.controls.target, position = this.camera.position;
+    const horizontalDistance = Math.hypot(position.x - target.x, position.z - target.z);
+    const start = this.getCameraBearing();
+    const turn = ((bearing - start + 540) % 360) - 180; // Shortest way round
+    const state = { bearing: start };
+    new TWEEN.Tween(state)
+      .to({ bearing: start + turn }, 1500)
+      .easing(TWEEN.Easing.Cubic.InOut)
+      .onUpdate(() => {
+        const angle = state.bearing * Math.PI / 180;
+        position.x = target.x - horizontalDistance * Math.sin(angle);
+        position.z = target.z + horizontalDistance * Math.cos(angle);
+        this.controls.update();
+      })
+      .start();
+  }
+
+
+
   // Show/Hide FPS
   showHideFPS = function(){
     let stats = this.stats;
@@ -445,6 +484,25 @@ class SceneManager{
   }
 
 
+
+
+
+  // OCEAN REFLECTION
+  // Renders the sky and the coastline once into a cubemap, which the ocean shader reflects.
+  // Everything else (ocean, buoy, vessels...) is hidden during the capture; lights stay on.
+  updateOceanReflection = function(){
+    const children = this.scene.children;
+    const visibility = children.map(child => child.visible);
+    children.forEach(child => child.visible = child.isLight || child == this.skybox.root || child == this.coastLine.root);
+
+    const renderTarget = new THREE.WebGLCubeRenderTarget(512);
+    const cubeCamera = new THREE.CubeCamera(1, 100000, renderTarget);
+    cubeCamera.position.set(0, 1, 0);
+    cubeCamera.update(this.renderer, this.scene);
+
+    children.forEach((child, index) => child.visible = visibility[index]);
+    this.ocean.setReflectionMap(renderTarget.texture);
+  }
 
 
 
