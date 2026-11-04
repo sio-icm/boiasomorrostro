@@ -239,8 +239,13 @@ export default {
       if (!sceneManager || !this.viewCone) return;
       const bearing = sceneManager.getCameraBearing();
       const halfWidth = Math.min(sceneManager.getCameraHorizontalFOV(), 170) / 2;
-      const [lat, lng] = [window.LATITUDE, window.LONGITUDE];
-      const length = 4000; // m
+      // From where the camera is (x east, z south, in m from the buoy), not always the buoy:
+      // the camera can be following a vessel (see SceneManager.follow)
+      const metresPerDegree = 6371000 * Math.PI / 180;
+      const camera = sceneManager.camera.position;
+      const lat = window.LATITUDE - camera.z / metresPerDegree;
+      const lng = window.LONGITUDE + camera.x / (metresPerDegree * Math.cos(window.LATITUDE * Math.PI / 180));
+      const length = sceneManager.followed ? 1500 : 4000; // m
       const points = [[lat, lng]];
       for (let step = 0; step <= 12; step++) {
         const angle = (bearing - halfWidth + halfWidth * 2 * step / 12) * Math.PI / 180;
