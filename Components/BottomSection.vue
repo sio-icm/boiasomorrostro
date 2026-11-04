@@ -35,7 +35,6 @@
 // import RenderStereoPanel from './BottomSection/RenderStereoPanel.vue';
 // import RenderHeightPanel from './BottomSection/RenderHeightPanel.vue';
 
-import RawData from './BottomSection/RawData.vue';
 import ForecastSection from './BottomSection/ForecastSection.vue';
 import ObservationsSection from './BottomSection/ObservationsSection.vue';
 import WindSection from './BottomSection/WindSection.vue';
@@ -201,7 +200,6 @@ export default {
     // "sea-state-analysis": SeaStateAnalysisPanel,
     // "render-heights": RenderHeightPanel,
     // "render-stereo": RenderStereoPanel,
-    "rawData": RawData,
     "forecastSection": ForecastSection,
     "observationsSection": ObservationsSection,
     "windSection": WindSection,
