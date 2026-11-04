@@ -163,8 +163,9 @@ export const OceanProjectedGridVertShader = /* glsl */ `
     // Get position
     vec3 modPos = intersectionPoint; // position;
 
-    // Attenuate waves as they get further away form the center (avoids artifacts)
-    float distanceToCenter = distance(vec3(0.0, 0.0, 0.0), intersectionPoint);
+    // Attenuate waves as they get further away from the camera (avoids artifacts on the horizon).
+    // From the camera, not the buoy (0, 0, 0): away from the buoy (following a boat) the sea was flat
+    float distanceToCenter = distance(cameraPosition.xz, intersectionPoint.xz);
     float distanceStart = 200.0;
     distanceToCenter = min(10000.0, max(distanceStart, distanceToCenter));
     float distanceFactor = max(0.0001, distanceStart/(distanceToCenter));
