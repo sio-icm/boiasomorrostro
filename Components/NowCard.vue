@@ -1,11 +1,11 @@
 <template>
-  <!-- The conditions now, over the 3D view: measured at the buoy if its data is recent, else
-       forecast (and since when the buoy is silent). Opens the observations or the forecast.
-       Hidden while the data panel covers the 3D view -->
+  <!-- The conditions at the app's moment (see GUIManager.selectedTime; now by default), over the
+       3D view: measured at the buoy if it has data then, else forecast (and since when the buoy is
+       silent). Opens the observations or the forecast. Hidden while the data panel covers the 3D view -->
   <div class="now-card clickable" v-if="rows.length && $gui.panelState !== 'fullscreen'" @click="open" :title="$t(measured ? 'Observations' : 'Forecast')">
     <div class="now-title">
-      <span>{{ $t('Now') }}</span>
-      <span class="now-source">{{ measured ? $t('Buoy') + ' · ' + age : $t('Forecast') }}</span>
+      <span>{{ title }}</span>
+      <span class="now-source">{{ measured ? $t('Buoy') + (age ? ' · ' + age : '') : $t('Forecast') }}</span>
     </div>
     <div class="now-row" v-for="row in rows" :key="row.label">
       <span>{{ row.label }}</span>
@@ -28,6 +28,18 @@ export default {
   data() {
     return { rows: [], measured: false, age: '', lastDate: '' };
   },
+  computed: {
+    title() {
+      return this.$gui.selectedTime
+        ? this.$gui.selectedTime.toLocaleString(this.$i18n.locale, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : this.$t('Now');
+    },
+  },
+  watch: {
+    '$gui.selectedTime'() {
+      this.update();
+    },
+  },
   mounted() {
     this.update();
     this.interval = setInterval(this.update, 10 * 60 * 1000);
@@ -42,22 +54,28 @@ export default {
       const t = (key) => this.$t(key);
       const format = (value, decimals, unit) => value == undefined || isNaN(value) ? undefined : `${value.toFixed(decimals)} ${unit}`;
       const latest = data.buoy.latestDate;
-      const hours = latest ? (Date.now() - latest) / 3600e3 : Infinity;
-      this.measured = hours < RECENT_HOURS;
+      const live = !this.$gui.selectedTime;
+      const date = this.$gui.moment;
       let rows;
+      // Now: the latest data, if recent. Another moment: the buoy's reading closest to that hour
+      const hours = latest ? (Date.now() - latest) / 3600e3 : Infinity;
+      const value = live
+        ? async (code) => hours < RECENT_HOURS ? data.buoy.latestRow(code)?.values[code] : undefined
+        : (code) => data.buoy.getValueAt(code, date, 60);
+      const [speed, direction, sea, air] = await Promise.all(['WSPD', 'WDIR', 'TEMP', 'DRYT'].map(value));
+      if (date !== this.$gui.moment && !live) return; // Another moment was picked meanwhile
+      this.measured = speed != undefined || sea != undefined;
       if (this.measured) {
-        const value = (code) => data.buoy.latestRow(code)?.values[code];
         rows = [
-          { label: t('Wind'), value: format(value('WSPD'), 1, 'm/s'), direction: value('WDIR') },
-          { label: t('Sea temperature'), value: format(value('TEMP'), 1, 'ºC') },
-          { label: t('Air temperature'), value: format(value('DRYT'), 1, 'ºC') },
+          { label: t('Wind'), value: format(speed, 1, 'm/s'), direction },
+          { label: t('Sea temperature'), value: format(sea, 1, 'ºC') },
+          { label: t('Air temperature'), value: format(air, 1, 'ºC') },
         ];
-        this.age = this.timeAgo(hours);
+        this.age = live ? this.timeAgo(hours) : '';
       } else {
-        const now = new Date();
         const [wind, windDirection, air, marine] = await Promise.all([
-          data.weather.getValueAt('WSPD', now), data.weather.getValueAt('WDIR', now), data.weather.getValueAt('DRYT', now),
-          this.marineNow(),
+          data.weather.getValueAt('WSPD', date), data.weather.getValueAt('WDIR', date), data.weather.getValueAt('DRYT', date),
+          this.marineAt(date),
         ]);
         const { wave_height: waves, wave_direction: wavesDirection, sea_surface_temperature: sea } = marine;
         rows = [
@@ -70,12 +88,16 @@ export default {
       }
       this.rows = rows.filter(row => row.value != undefined);
     },
-    // Waves and sea temperature now at the buoy, from Open-Meteo Marine (as the 3D sea, see Canvas3D)
-    async marineNow() {
+    // Waves and sea temperature at the buoy at a moment, from Open-Meteo Marine (as the 3D sea,
+    // see Canvas3D), hourly from 3 days ago to 3 ahead
+    async marineAt(date) {
+      const variables = ['wave_height', 'wave_direction', 'sea_surface_temperature'];
       const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${window.LATITUDE}&longitude=${window.LONGITUDE}`
-        + '&current=wave_height,wave_direction,sea_surface_temperature';
+        + `&hourly=${variables.join(',')}&past_days=3&forecast_days=3&timezone=UTC`;
       try {
-        return (await (await window.FetchManager.fetch(url, 30)).json()).current || {};
+        const hourly = (await (await window.FetchManager.fetch(url, 30)).json()).hourly;
+        const index = hourly.time.findIndex(time => Math.abs(Date.parse(time + 'Z') - date) < 1800e3);
+        return index < 0 ? {} : Object.fromEntries(variables.map(variable => [variable, hourly[variable][index]]));
       } catch (error) {
         return {};
       }

@@ -48,7 +48,8 @@ class ForecastField {
         lons.push((BOUNDS.west + (BOUNDS.east - BOUNDS.west) * j / (COLS - 1)).toFixed(3));
       }
     }
-    const url = this.source.url + '&latitude=' + lats.join(',') + '&longitude=' + lons.join(',') + '&forecast_days=2&timezone=UTC';
+    // The app's moment goes from 3 days ago to 2 ahead (see GUIManager.selectedTime)
+    const url = this.source.url + '&latitude=' + lats.join(',') + '&longitude=' + lons.join(',') + '&past_days=3&forecast_days=3&timezone=UTC';
     const points = await (await FetchManager.fetch(url, CACHE_MINUTES)).json();
 
     const { speed: speedKey, direction: directionKey, toMs, fromDirection } = this.source;

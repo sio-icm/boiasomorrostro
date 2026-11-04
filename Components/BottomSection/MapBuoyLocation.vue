@@ -117,13 +117,9 @@ export default {
       currents: { group: L.layerGroup(), label: "Currents forecast" },
       seaTemperature: { group: L.layerGroup(), label: "Sea temperature forecast" },
     };
-    this.forecastTimes = Array.from({ length: 48 }, (_, hour) => {
-      const time = new Date();
-      time.setUTCMinutes(0, 0, 0);
-      time.setUTCHours(time.getUTCHours() + hour);
-      return time;
-    });
-    this.forecastHour = 0;
+    // The forecasts show the app's moment (see GUIManager.selectedTime)
+    this.forecastTime = this.$gui.moment;
+    window.eventBus.on('GUIManager_timeChanged', this.onTimeChanged);
     this.forecastControl = this.createForecastControl();
     const overlays = {};
     Object.values(this.forecasts).forEach(forecast => overlays[this.$i18n.t(forecast.label)] = forecast.group);
@@ -221,6 +217,7 @@ export default {
     window.eventBus.off('AISManager_receivedAISMessage', this.handleAISMessage);
     window.eventBus.off('AISManager_bboxes', this.drawAISCoverage);
     window.eventBus.off('Canvas3D_objectPicked', this.showPicked);
+    window.eventBus.off('GUIManager_timeChanged', this.onTimeChanged);
     window.eventBus.off('Canvas3D_cameraChange', this.updateViewCone);
     window.removeEventListener('resize', this.invalidateMapSize);
     // Stops the wind animation along with everything else on the map
@@ -271,7 +268,7 @@ export default {
       // It may have been switched off while loading
       if (!this.map.hasLayer(forecast.group)) return;
       if (!forecast.group.hasLayer(forecast.layer)) forecast.group.addLayer(forecast.layer);
-      this.setForecastHour(this.forecastHour);
+      this.setForecastTime(this.forecastTime);
     },
     async createForecastLayer(name) {
       const scales = window.PARTICLES_COLOR_SCALES;
@@ -291,7 +288,7 @@ export default {
       return L.tileLayer('https://wmts.marine.copernicus.eu/teroWmts?service=WMTS&version=1.0.0&request=GetTile' +
         '&layer=MEDSEA_ANALYSISFORECAST_PHY_006_013/cmems_mod_med_phy-tem_anfc_4.2km-2D_PT1H-m_202511/thetao' +
         '&style=cmap:thermal,range:{min}/{max}&format=image/png&tilematrixset=EPSG:3857&tilematrix={z}&tilerow={y}&tilecol={x}&time={time}', {
-        min: range[0], max: range[1], time: this.forecastTimes[0].toISOString(),
+        min: range[0], max: range[1], time: this.forecastTime.toISOString(),
         // The model is 4.2 km: low-resolution tiles enlarged by the browser look smooth instead of blocky
         maxNativeZoom: 6,
         opacity: 0.7, zIndex: 2,
@@ -314,9 +311,11 @@ export default {
       }
       return [Math.round(center - 3), Math.round(center + 3)];
     },
-    setForecastHour(hour) {
-      this.forecastHour = hour;
-      const time = this.forecastTimes[hour];
+    onTimeChanged() {
+      this.setForecastTime(this.$gui.moment);
+    },
+    setForecastTime(time) {
+      this.forecastTime = time;
       Object.entries(this.forecasts).forEach(([name, forecast]) => {
         if (!forecast.layer || !this.map.hasLayer(forecast.group)) return;
         if (forecast.layer.field) forecast.layer.setHour(forecast.layer.field.hourIndex(time));
@@ -327,7 +326,7 @@ export default {
       });
       this.updateForecastControl();
     },
-    // Bottom-left box: forecast hour (slider) and the scale of each visible forecast
+    // Bottom-left box: the forecasts' time (set with the app's time control) and the scale of each visible forecast
     createForecastControl() {
       const control = L.control({ position: 'bottomleft' });
       control.onAdd = () => {
@@ -338,11 +337,9 @@ export default {
           <div class="map-forecast-header" role="button" title="${this.$i18n.t("Show or hide legend")}">
             <div>${this.$i18n.t("Forecast")} <i class="map-forecast-chevron">&#9662;</i></div><b class="map-forecast-time"></b>
           </div>
-          <input type="range" min="0" max="${this.forecastTimes.length - 1}" step="1">
           <div class="map-forecast-legends"></div>`;
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
-        container.querySelector('input').addEventListener('input', (e) => this.setForecastHour(parseInt(e.target.value)));
         container.querySelector('.map-forecast-header').addEventListener('click', () => container.classList.toggle('collapsed'));
         return container;
       };
@@ -357,10 +354,8 @@ export default {
       }
       if (!this.forecastControl.getContainer()?.parentNode) this.forecastControl.addTo(this.map);
       const container = this.forecastControl.getContainer();
-      const time = this.forecastTimes[this.forecastHour];
       container.querySelector('.map-forecast-time').textContent =
-        time.toLocaleString(this.$i18n.locale, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      container.querySelector('input').value = this.forecastHour;
+        this.forecastTime.toLocaleString(this.$i18n.locale, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
       const scales = window.PARTICLES_COLOR_SCALES;
       const gradient = (stops, max) => stops.map(([value, rgb]) => `rgb(${rgb}) ${value / max * 100}%`).join(', ');
@@ -776,11 +771,6 @@ export default {
   .map-forecast-control {
     width: 180px;
   }
-}
-.map-forecast-control input {
-  width: 100%;
-  accent-color: var(--darkBlue);
-  margin: 2px 0;
 }
 .map-forecast-legend-title {
   display: flex;

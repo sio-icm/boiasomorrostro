@@ -213,8 +213,11 @@ export default {
 
     // ****** WAVES FORECAST *****
     // The buoy measures no waves, so the sea follows the forecast at the buoy, refreshed hourly
-    this.loadWaveForecast();
-    this.waveForecastInterval = setInterval(this.loadWaveForecast, 60 * 60 * 1000);
+    // The moment shown (see GUIManager.selectedTime): sky, sea and wind for it. Again every hour,
+    // so the present moves on and the forecast is refreshed
+    this.applyMoment();
+    window.eventBus.on('GUIManager_timeChanged', () => this.applyMoment());
+    this.waveForecastInterval = setInterval(this.applyMoment, 60 * 60 * 1000);
 
     // ****** LOADING SCREEN  - INITIAL PARAMETERS *****
     window.eventBus.on('SceneManager_LoadingComplete', () => {
@@ -226,7 +229,7 @@ export default {
         'WDIR': 180,
       }
       updateData(params);
-      this.loadWaveForecast(); // The defaults above stand in until it loads
+      this.applyMoment(); // The defaults above stand in until the forecast loads
     });
 
     
@@ -269,21 +272,52 @@ export default {
     }
   },
   methods: {
-    // Sea state at the buoy from Open-Meteo Marine (Copernicus Mediterranean waves model):
-    // total sea, wind sea and the two swells, applied as the CMEMS data used to be (see above)
-    async loadWaveForecast() {
+    // Sky, sea and wind of the moment shown (see GUIManager.selectedTime)
+    async applyMoment() {
+      const date = this.$gui.moment;
+      this.sceneManager.setSkyTime(this.$gui.selectedTime); // undefined: now, and moving on
+      await this.loadWaveForecast(date);
+      await this.applyWind(date);
+    },
+    // Wind at the buoy at a moment: measured if there is data for that hour, else forecast.
+    // Sets how steep (choppy) the sea is, and the sail of a patí (see PatiEntity)
+    async applyWind(date) {
+      const data = this.$dataService;
+      let speed = await data.buoy.getValueAt('WSPD', date, 60);
+      let direction = await data.buoy.getValueAt('WDIR', date, 60);
+      if (speed == undefined) {
+        speed = await data.weather.getValueAt('WSPD', date);
+        direction = await data.weather.getValueAt('WDIR', date);
+      }
+      if (direction != undefined) this.sceneManager.windDirection = direction;
+      if (speed != undefined && this.sceneManager.ocean) {
+        this.sceneManager.ocean.updateSteepness(0.05 + 0.25 * Math.min(1, speed * 3.6 / 25));
+      }
+    },
+    // Sea state at the buoy at a moment from Open-Meteo Marine (Copernicus Mediterranean waves
+    // model), hourly from 3 days ago to 3 ahead: total sea, wind sea and the two swells,
+    // applied as the CMEMS data used to be (see above)
+    async loadWaveForecast(date = new Date()) {
+      const variables = ['wave_height', 'wave_direction', 'wind_wave_height', 'wind_wave_direction', 'swell_wave_height',
+        'swell_wave_direction', 'secondary_swell_wave_height', 'secondary_swell_wave_direction'];
       const url = 'https://marine-api.open-meteo.com/v1/marine?latitude=' + (window.LATITUDE || 41.375694)
-        + '&longitude=' + (window.LONGITUDE || 2.216194) + '&current=wave_height,wave_direction,wind_wave_height,'
-        + 'wind_wave_direction,swell_wave_height,swell_wave_direction,secondary_swell_wave_height,secondary_swell_wave_direction';
-      let waves;
+        + '&longitude=' + (window.LONGITUDE || 2.216194) + '&hourly=' + variables.join(',') + '&past_days=3&forecast_days=3&timezone=UTC';
+      let hourly;
       try {
-        waves = (await (await window.FetchManager.fetch(url, 30)).json()).current;
+        hourly = (await (await window.FetchManager.fetch(url, 30)).json()).hourly;
       } catch (error) {
         console.warn('Could not load the waves forecast', error);
         return;
       }
       const ocean = this.sceneManager.ocean;
-      if (!ocean || waves?.wave_height == undefined) return;
+      if (!ocean || !hourly) return;
+      // The hour closest to the moment
+      let index = 0;
+      hourly.time.forEach((time, i) => {
+        if (Math.abs(Date.parse(time + 'Z') - date) < Math.abs(Date.parse(hourly.time[index] + 'Z') - date)) index = i;
+      });
+      const waves = Object.fromEntries(variables.map(variable => [variable, hourly[variable][index]]));
+      if (waves.wave_height == undefined) return;
       this.forecastWaves = waves;
       const height = Math.max(0.1, waves.wave_height);
       ocean.updateWaveSignificantHeight(height);

@@ -631,7 +631,7 @@ class SceneManager{
   // Shows the sky at another moment (a Date), or back to now with undefined
   setSkyTime = function(date){
     this.skyDate = date;
-    this.updateSky();
+    if (this.skyInterval) this.updateSky(); // Else the first updateSky, once loaded, uses it
   }
 
 
