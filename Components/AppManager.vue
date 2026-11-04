@@ -7,21 +7,11 @@
       <canvas3D></canvas3D>
       <!-- Bottom section -->
       <bottom-section></bottom-section>
-
-      <!-- Central Panel -->
-      <central-panel></central-panel>
     </div>
 
 
     <!-- Top right icons -->
     <top-right-menu></top-right-menu>
-
-    <!-- Top left icons that show how to control the ocean -->
-    <!-- <top-left-menu></top-left-menu> -->
-
-
-    <!-- Central Panel -->
-    <central-panel></central-panel>
 
 
 
@@ -65,10 +55,7 @@
 // Import components
 import Canvas3D from "./Canvas3D.vue"
 import BottomSection from "./BottomSection.vue"
-import InstrumentsMenu from "./Instruments/InstrumentsMenu.vue"
 import TopRightMenu from "./TopRight/TopRightMenu.vue"
-import TopLeftMenu from "./TopLeft/TopLeftMenu.vue"
-import CentralPanel from "./CentralPanel.vue"
 import LanguageSelector from "/boiasomorrostro/Components/TopRight/LanguageSelector.vue"
 import NowCard from "./NowCard.vue"
 
@@ -109,10 +96,7 @@ export default {
   components: {
     "canvas3D": Canvas3D,
     "bottom-section": BottomSection,
-    "instruments-menu": InstrumentsMenu,
     "top-right-menu": TopRightMenu,
-    "top-left-menu": TopLeftMenu,
-    "central-panel": CentralPanel,
     "language-selector": LanguageSelector,
     "now-card": NowCard,
   }

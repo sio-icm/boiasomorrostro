@@ -1,6 +1,10 @@
-"""Slims a GLB that carries every texture twice (WebP + PNG fallback, EXT_texture_webp):
-keeps only the WebP images, and quantizes NORMAL to normalized int8 and TEXCOORD_0 to
-normalized uint16 (standard library only) when inside [0, 1] (KHR_mesh_quantization, read natively by three.js).
+"""Slims a GLB (standard library only). Each step only applies where it still can, so it can be
+run again on its own output:
+- keeps only the WebP images when every texture is there twice (WebP + PNG fallback,
+  EXT_texture_webp)
+- quantizes (KHR_mesh_quantization, read natively by three.js) NORMAL to normalized int8,
+  TEXCOORD_0 to normalized uint16 when inside [0, 1], and POSITION to normalized int16: each
+  mesh then hangs from a child node that scales it back (uniform scale, so normals stay right)
 
 Usage: python3 slim_glb.py in.glb out.glb
 """
@@ -54,28 +58,45 @@ def add_chunk(raw, target=None, stride=None):
     return len(chunks) - 1
 
 
-# 1. Images: keep the WebP ones only
+# 1. Images: keep the WebP ones only (when there are both)
+if not any('EXT_texture_webp' in texture.get('extensions', {}) for texture in gltf.get('textures', [])):
+    gltf['images'] = [dict(image, bufferView=add_chunk(view_bytes(image['bufferView']))) for image in gltf.get('images', [])]
 webp_images = {}
-for index, image in enumerate(gltf['images']):
-    if image['mimeType'] == 'image/webp':
-        webp_images[index] = image
-for texture in gltf['textures']:
-    texture['source'] = texture['extensions']['EXT_texture_webp']['source']
-    del texture['extensions']
-image_map = {old: new for new, old in enumerate(sorted(webp_images))}
-gltf['images'] = [dict(webp_images[old], bufferView=add_chunk(view_bytes(webp_images[old]['bufferView'])))
-                  for old in sorted(webp_images)]
-for texture in gltf['textures']:
-    texture['source'] = image_map[texture['source']]
+if any('EXT_texture_webp' in texture.get('extensions', {}) for texture in gltf.get('textures', [])):
+    for index, image in enumerate(gltf['images']):
+        if image['mimeType'] == 'image/webp':
+            webp_images[index] = image
+    for texture in gltf['textures']:
+        texture['source'] = texture['extensions']['EXT_texture_webp']['source']
+        del texture['extensions']
+    image_map = {old: new for new, old in enumerate(sorted(webp_images))}
+    gltf['images'] = [dict(webp_images[old], bufferView=add_chunk(view_bytes(webp_images[old]['bufferView'])))
+                      for old in sorted(webp_images)]
+    for texture in gltf['textures']:
+        texture['source'] = image_map[texture['source']]
 
-# 2. Accessors: copy, quantizing normals and texture coordinates
+# 2. Accessors: copy, quantizing normals, texture coordinates and positions (if still floats)
+FLOAT = 5126
 quantized = set()
-for mesh in gltf['meshes']:
+position_mesh = {}  # position accessor -> its mesh
+for mesh_index, mesh in enumerate(gltf['meshes']):
     for primitive in mesh['primitives']:
         for name, index in primitive['attributes'].items():
-            if name in ('NORMAL', 'TEXCOORD_0'):
+            if name in ('NORMAL', 'TEXCOORD_0', 'POSITION') and gltf['accessors'][index]['componentType'] == FLOAT:
                 quantized.add((index, name))
+            if name == 'POSITION':
+                position_mesh[index] = mesh_index
 kind = dict(quantized)
+# Positions: one centre and (uniform) half size per mesh, from its primitives' bounds
+mesh_bounds = {}
+for index, mesh_index in position_mesh.items():
+    if kind.get(index) != 'POSITION':
+        continue
+    accessor = gltf['accessors'][index]
+    low, high = mesh_bounds.get(mesh_index, (accessor['min'], accessor['max']))
+    mesh_bounds[mesh_index] = ([min(a, b) for a, b in zip(low, accessor['min'])], [max(a, b) for a, b in zip(high, accessor['max'])])
+mesh_transform = {m: ([(lo + hi) / 2 for lo, hi in zip(*b)], max(max((hi - lo) / 2 for lo, hi in zip(*b)), 1e-6))
+                  for m, b in mesh_bounds.items()}
 for index, accessor in enumerate(gltf['accessors']):
     values = read_accessor(accessor)
     name = kind.get(index)
@@ -87,6 +108,16 @@ for index, accessor in enumerate(gltf['accessors']):
         accessor.update(componentType=5120, normalized=True)
         accessor.pop('byteOffset', None)
         accessor['bufferView'] = add_chunk(packed.tobytes(), 34962, 4)
+    elif name == 'POSITION' and position_mesh[index] in mesh_transform:
+        center, half = mesh_transform[position_mesh[index]]
+        packed = array('h')
+        for i in range(0, len(values), 3):
+            packed.extend(round((values[i + k] - center[k]) / half * 32767) for k in range(3))
+            packed.append(0)  # 4-byte aligned vertices
+        accessor.update(componentType=5122, normalized=True,
+                        min=[min(packed[k::4]) / 32767 for k in range(3)], max=[max(packed[k::4]) / 32767 for k in range(3)])
+        accessor.pop('byteOffset', None)
+        accessor['bufferView'] = add_chunk(packed.tobytes(), 34962, 8)
     elif name == 'TEXCOORD_0' and min(values) >= 0 and max(values) <= 1:
         packed = array('H', (round(v * 65535) for v in values))
         accessor.update(componentType=5123, normalized=True)
@@ -97,6 +128,15 @@ for index, accessor in enumerate(gltf['accessors']):
         target = gltf['bufferViews'][accessor['bufferView']].get('target')
         accessor.pop('byteOffset', None)
         accessor['bufferView'] = add_chunk(values.tobytes(), target, None)
+
+# Each quantized mesh hangs from a new child node that puts it back in place
+for node in list(gltf['nodes']):
+    mesh_index = node.get('mesh')
+    if mesh_index in mesh_transform:
+        center, half = mesh_transform[mesh_index]
+        gltf['nodes'].append({'mesh': mesh_index, 'translation': center, 'scale': [half] * 3})
+        node.setdefault('children', []).append(len(gltf['nodes']) - 1)
+        del node['mesh']
 
 # 3. Rebuild the binary buffer, 4-byte aligned
 out = bytearray()
