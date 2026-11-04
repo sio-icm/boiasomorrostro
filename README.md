@@ -30,20 +30,26 @@ python3 dev_server.py 8765
 and open http://localhost:8765/boiasomorrostro/. `dev_server.py` also proxies the ERDDAP
 requests, which the servers don't allow from localhost.
 
-ICATMAR's AIS feed only accepts its own website, so locally the ships come from
-[aisstream.io](https://aisstream.io) (free, needs an API key) through `ais_relay.py`. Put the key
+ICATMAR's services only accept its own website, so `boia_server.py` stands in for them: an
+ERDDAP proxy and the AIS feed. Locally the ships come from
+[aisstream.io](https://aisstream.io) (free, needs an API key) through `boia_server.py`. Put the key
 in a `.env` file (not in git) as `AISSTREAM_API_KEY=...`, then:
 
 ```bash
-python3 ais_relay.py
+python3 boia_server.py
 ```
 
 ### A boat without AIS (a patí de vela)
 
-`ais_relay.py` also takes positions on port 8767, as sent by the
+`boia_server.py` also takes positions on port 8767, as sent by the
 [Traccar Client](https://www.traccar.org/client/) phone app, and shows them as one more boat:
 a sail on the map and a patí in the 3D scene. Tapping it (or any ship, or the buoy) on the map
 or in the 3D view takes the camera there and follows it. List the
 phone's device id in `.env` as `PATI_DEVICES=<device id>:<name shown>` and point the app to
 `http://<this computer>:8767/`. To test it on land, `python3 tools/simulate_pati.py` sails a
 simulated patí off the Barceloneta.
+
+## Publishing
+
+The published app needs `boia_server.py` running on a server with HTTPS, and its address in
+`Assets/Scripts/config.js`. Step by step (in Spanish): [deploy/README.md](deploy/README.md).

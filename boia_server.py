@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
-"""Local AIS feed for development, in place of wss://api.icatmar.cat/ais (which only accepts
-ICATMAR's own website).
+"""The SIO's server for the app: what browsers can't get straight from ICATMAR's services
+(they only accept ICATMAR's own website), and positions of boats without AIS. Runs locally for
+development and, the same, on the server (see deploy/README.md).
+
+ERDDAP PROXY (HTTP port, /proxy/?url=<ERDDAP URL>): the buoys' ERDDAPs refuse browser requests,
+so this fetches them and adds the CORS header for the allowed origins (BOIA_ORIGINS in .env,
+comma separated; localhost always). Only for the hosts in PROXY_HOSTS, cached for a minute.
+
+AIS FEED (WebSocket port), in place of wss://api.icatmar.cat/ais.
 
 Connects to aisstream.io (free, needs an API key: https://aisstream.io) for the ships around
 the buoy and relays them to the app speaking the same protocol as ICATMAR's server
@@ -16,8 +23,8 @@ JSON body), and relays them as AIS messages of a sailing boat with MMSI "PATI-<i
 device ids listed in PATI_DEVICES (.env, "id:Name,id2:Name2") are accepted, plus "simulador"
 (see tools/simulate_pati.py).
 
-Usage: python3 ais_relay.py [port] [pati port]   (default 8766 and 8767; AISManager connects to
-the first on localhost)
+Usage: python3 boia_server.py [port] [http port]   (default 8766 for the AIS WebSocket and 8767
+for the proxy and the patí positions; see Assets/Scripts/config.js)
 Requires the websockets package (pip install websockets).
 """
 import asyncio
@@ -25,6 +32,8 @@ import json
 import os
 import sys
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlsplit
 
@@ -34,6 +43,10 @@ AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream'
 # Around the buoy: Barcelona coast, from Garraf to Badalona and some 40 km offshore
 BBOXES = [[[41.10, 1.86], [41.64, 2.58]]]
 HISTORY_SECONDS = 30 * 60  # recent messages sent to each new client, so ships show up at once
+
+PROXY_HOSTS = {'erddap.icatmar.cat', 'hebe.icm.csic.es'}
+PROXY_CACHE_SECONDS = 60
+proxy_cache = {}  # url -> (fetched at, status, content type, body)
 
 # A patí de vela: 5.68 m long (A + B, from the GPS), 1.6 m wide (C + D)
 PATI_DIMENSION = {'A': 3, 'B': 3, 'C': 1, 'D': 1}
@@ -61,6 +74,13 @@ def read_api_key():
     if not key:
         sys.exit('No aisstream.io key: set AISSTREAM_API_KEY or add it to .env')
     return key
+
+
+def read_origins():
+    """Websites allowed to use the proxy and the AIS feed: BOIA_ORIGINS, plus localhost"""
+    origins = {f'http://{host}:{port}' for host in ('localhost', '127.0.0.1') for port in (8765, 8080, 5500)}
+    origins |= {o.strip().rstrip('/') for o in (read_env('BOIA_ORIGINS') or '').split(',') if o.strip()}
+    return origins
 
 
 def read_pati_devices():
@@ -140,33 +160,77 @@ def pati_fix(path, body):
     return params.get('id'), lat, lon, speed, bearing, when
 
 
-async def pati_handler(reader, writer, devices):
-    status = '400 Bad Request'
+# ERDDAP PROXY
+def fetch_upstream(url):
+    """(status, content type, body) of an allowed ERDDAP URL, cached for a minute"""
+    cached = proxy_cache.get(url)
+    if cached and time.time() - cached[0] < PROXY_CACHE_SECONDS:
+        return cached[1:]
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'boia-server'}), timeout=60) as res:
+            result = (res.status, res.headers.get('Content-Type', 'text/plain'), res.read())
+    except urllib.error.HTTPError as error:  # ERDDAP answers 404 when a query matches no rows
+        result = (error.code, error.headers.get('Content-Type', 'text/plain'), error.read())
+    except OSError as error:
+        result = (502, 'text/plain', str(error).encode())
+    if result[0] < 500:
+        proxy_cache[url] = (time.time(),) + result
+        if len(proxy_cache) > 500:
+            proxy_cache.pop(next(iter(proxy_cache)))
+    return result
+
+
+async def proxy(path):
+    target = parse_qs(urlsplit(path).query).get('url', [''])[0]
+    if urlsplit(target).hostname not in PROXY_HOSTS:
+        return 403, 'text/plain', b'Host not allowed'
+    return await asyncio.to_thread(fetch_upstream, target)
+
+
+# HTTP PORT: the proxy, and patí positions
+async def http_handler(reader, writer, devices, origins):
+    status, content_type, body_out, extra = '400 Bad Request', 'text/plain', b'', ''
     try:
         head = await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'), 10)
         lines = head.decode(errors='ignore').split('\r\n')
         method, path = lines[0].split(' ')[:2]
         headers = {k.strip().lower(): v.strip() for k, _, v in (line.partition(':') for line in lines[1:] if line)}
         body = await reader.readexactly(int(headers.get('content-length', 0) or 0))
-        device_id, lat, lon, speed, bearing, when = pati_fix(path, body)
-        if device_id not in devices:
-            status = '403 Forbidden'
-            print(f'⛔ Patí: unknown device {device_id!r}')
+        origin = headers.get('origin')
+        if origin in origins:
+            extra = f'Access-Control-Allow-Origin: {origin}\r\nVary: Origin\r\n'
+        if urlsplit(path).path.rstrip('/').endswith('/proxy'):
+            code, content_type, body_out = await proxy(path)
+            status = f'{code} {"OK" if code == 200 else "Error"}'
+            extra += 'Cache-Control: public, max-age=60\r\n'
         else:
-            mmsi = f'PATI-{device_id}'
-            metadata = {'MMSI_String': mmsi, 'ShipName': devices[device_id], 'latitude': lat, 'longitude': lon, 'time_utc': when}
-            if mmsi not in pati_static:
-                pati_static[mmsi] = {'MessageType': 'ShipStaticData', 'MetaData': metadata,
-                                     'Message': {'ShipStaticData': {'Type': PATI_TYPE, 'Dimension': PATI_DIMENSION}}}
-                publish(pati_static[mmsi])
-            publish({'MessageType': 'PositionReport', 'MetaData': metadata,
-                     'Message': {'PositionReport': {'TrueHeading': bearing, 'Sog': round(speed, 1)}}})
-            status = '200 OK'
+            status = pati_report(path, body, devices)
     except (ValueError, KeyError, IndexError, asyncio.IncompleteReadError, asyncio.TimeoutError):
         pass
-    writer.write(f'HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'.encode())
+    writer.write(f'HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {len(body_out)}\r\n{extra}'
+                 f'Connection: close\r\n\r\n'.encode() + body_out)
     await writer.drain()
     writer.close()
+
+
+def pati_report(path, body, devices):
+    """Relays a phone's position as AIS messages; returns the HTTP status"""
+    try:
+        device_id, lat, lon, speed, bearing, when = pati_fix(path, body)
+        if device_id not in devices:
+            print(f'⛔ Patí: unknown device {device_id!r}')
+            return '403 Forbidden'
+        mmsi = f'PATI-{device_id}'
+        metadata = {'MMSI_String': mmsi, 'ShipName': devices[device_id], 'latitude': lat, 'longitude': lon, 'time_utc': when}
+        if mmsi not in pati_static:
+            pati_static[mmsi] = {'MessageType': 'ShipStaticData', 'MetaData': metadata,
+                                 'Message': {'ShipStaticData': {'Type': PATI_TYPE, 'Dimension': PATI_DIMENSION}}}
+            publish(pati_static[mmsi])
+        publish({'MessageType': 'PositionReport', 'MetaData': metadata,
+                 'Message': {'PositionReport': {'TrueHeading': bearing, 'Sog': round(speed, 1)}}})
+        return '200 OK'
+    except (ValueError, KeyError, IndexError):
+        return '400 Bad Request'
 
 
 async def client_handler(ws, path=None):
@@ -182,13 +246,16 @@ async def client_handler(ws, path=None):
         clients.discard(ws)
 
 
-async def main(port, pati_port):
+async def main(port, http_port):
     api_key = read_api_key()
     devices = read_pati_devices()
-    # The patí port listens on every interface, so a phone on the same network can reach it
-    pati_server = await asyncio.start_server(lambda r, w: pati_handler(r, w, devices), '0.0.0.0', pati_port)
-    async with websockets.serve(client_handler, 'localhost', port), pati_server:
-        print(f'AIS relay on ws://localhost:{port}, patí positions on http://<this computer>:{pati_port}/')
+    origins = read_origins()
+    # The HTTP port listens on every interface, so a phone on the same network can reach it
+    http_server = await asyncio.start_server(lambda r, w: http_handler(r, w, devices, origins), '0.0.0.0', http_port)
+    # The AIS feed only for the allowed websites (browsers always send their origin)
+    async with websockets.serve(client_handler, 'localhost', port, origins=sorted(origins)), http_server:
+        print(f'AIS on ws://localhost:{port}; proxy and patí positions on http://<this computer>:{http_port}/')
+        print('Allowed origins:', ', '.join(sorted(origins)))
         await upstream(api_key)
 
 

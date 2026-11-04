@@ -45,7 +45,7 @@ class AISVesselsManager {
     });
   }
 
-  // Boats without AIS, sent from a phone through ais_relay.py
+  // Boats without AIS, sent from a phone through boia_server.py
   isPati = (shipInfo) => String(shipInfo.MMSI).startsWith('PATI-')
 
 

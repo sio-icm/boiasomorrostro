@@ -29,7 +29,6 @@
 // hundred points per variable. Charts with Apache ECharts, loaded only when this section opens.
 
 const ERDDAP = 'https://erddap.icatmar.cat/erddap/tabledap/';
-const PROXY_URL = ['localhost', '127.0.0.1'].includes(location.hostname) ? '/proxy/' : 'https://api.icatmar.cat/proxy/';
 const CACHE_MINUTES = 30;
 
 // Ranges back from the latest data (the buoy may have stopped), and how each is averaged
@@ -130,7 +129,7 @@ export default {
     // { column: [[time, value], ...] } of a sensor. Directions aren't averaged (the mean of
     // 350º and 10º isn't 180º): they take the reading closest to each interval instead
     async fetchSensor(sensor, columns, aggregate) {
-      const url = PROXY_URL + '?url=' + encodeURIComponent(this.queryURL(sensor, columns, 'csv', aggregate));
+      const url = window.BoiaConfig.proxied(this.queryURL(sensor, columns, 'csv', aggregate));
       const text = await window.FetchManager.fetch(url, CACHE_MINUTES).then(res => res.ok ? res.text() : '').catch(() => '');
       const result = Object.fromEntries(columns.map(column => [column, []]));
       text.trim().split('\n').slice(2).forEach(line => {

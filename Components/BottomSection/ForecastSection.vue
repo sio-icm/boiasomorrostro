@@ -31,7 +31,7 @@ import DataTimeline from "./DataTimeline/DataTimeline.vue";
 export default {
   name: "ForecastSection",
   created() {
-    // OpenWeather/CMEMS each have a single source/promise, not per-sensor
+    // Open-Meteo/CMEMS each have a single source/promise, not per-sensor
     // ones like the buoy (see ObservationsSection.vue), so every row of a
     // product spins until that one promise resolves - keyed by product name
     // to match DataTimeline's isLoading() fallback for rows without a `sensor`.

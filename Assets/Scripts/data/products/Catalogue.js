@@ -1,8 +1,8 @@
-import SourceOpenWeatherAPI from '../sources/SourceOpenWeatherAPI.js';
+import SourceOpenMeteo from '../sources/SourceOpenMeteo.js';
 import SourceCMEMS from '../sources/SourceCMEMS.js';
 import SourceErddapBuoys from '../sources/SourceErddapBuoys.js';
 
-import DPOpenWeatherAPI from './DPOpenWeatherAPI.js';
+import DPOpenMeteo from './DPOpenMeteo.js';
 import DPCMEMS from './DPCMEMS.js';
 import DPBuoys from './DPBuoys.js';
 
@@ -55,13 +55,13 @@ function adcpCurrentVariables() {
 // here.
 const dataProducts = [
 
-  // Open Weather API
+  // Open-Meteo (it was OpenWeather, through ICATMAR's proxy, which only answers ICATMAR's website)
   {
-    name: 'Open Weather API',
-    Class: DPOpenWeatherAPI,
+    name: 'Open-Meteo',
+    Class: DPOpenMeteo,
     description: 'Atmospheric forecast at the buoy location',
     type: 'forecast',
-    link: 'https://openweather.co.uk/technology',
+    link: 'https://open-meteo.com/en/docs/meteofrance-api',
     variables: [
       { code: 'WSPD',  name: 'Wind speed',      unitGroup: 'wind',    directionCode: 'WDIR', fromDirection: true },
       { code: 'GUST',  name: 'Wind gust',       unitGroup: 'wind' },
@@ -71,17 +71,17 @@ const dataProducts = [
     ],
     sources: [
       {
-        Class: SourceOpenWeatherAPI,
-        src: 'https://api.icatmar.cat/openWeatherAPI',
-        institution: 'OpenWeather',
-        // Standard code -> path inside a forecast entry (https://openweathermap.org/forecast5)
+        Class: SourceOpenMeteo,
+        src: 'https://api.open-meteo.com/v1/meteofrance',
+        institution: 'Open-Meteo · Météo-France',
+        // Standard code -> Open-Meteo hourly variable
         mapping: {
-          WSPD:  { source: 'wind.speed' },
-          WDIR:  { source: 'wind.deg' },
-          GUST:  { source: 'wind.gust' },
-          DRYT:  { source: 'main.temp' },
-          RELH:  { source: 'main.humidity' },
-          CLOUD: { source: 'clouds.all' },
+          WSPD:  { source: 'wind_speed_10m' },
+          WDIR:  { source: 'wind_direction_10m' },
+          GUST:  { source: 'wind_gusts_10m' },
+          DRYT:  { source: 'temperature_2m' },
+          RELH:  { source: 'relative_humidity_2m' },
+          CLOUD: { source: 'cloud_cover' },
         },
       }
     ]

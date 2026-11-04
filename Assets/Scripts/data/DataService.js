@@ -5,8 +5,8 @@ class DataService {
   constructor(FetchManager) {
     this.catalogue = Catalogue;
 
-    const openWeather = Catalogue.find(p => p.name === 'Open Weather API');
-    this.openWeather = new openWeather.Class(openWeather, FetchManager);
+    const weather = Catalogue.find(p => p.name === 'Open-Meteo');
+    this.weather = new weather.Class(weather, FetchManager);
 
     const cmems = Catalogue.find(p => p.name === 'Copernicus Marine Service');
     this.cmems = new cmems.Class(cmems, FetchManager);
@@ -16,7 +16,7 @@ class DataService {
 
     // Forecast section - modelled data around the buoy
     this.forecastProducts = [
-      { name: openWeather.name, product: this.openWeather },
+      { name: weather.name, product: this.weather },
       { name: cmems.name, product: this.cmems },
     ];
     // Observations section - measured at the buoy
