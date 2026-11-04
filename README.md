@@ -37,3 +37,12 @@ in a `.env` file (not in git) as `AISSTREAM_API_KEY=...`, then:
 ```bash
 python3 ais_relay.py
 ```
+
+### A boat without AIS (a patí de vela)
+
+`ais_relay.py` also takes positions on port 8767, as sent by the
+[Traccar Client](https://www.traccar.org/client/) phone app, and shows them as one more boat:
+a sail on the map and a patí in the 3D scene, with a "Follow in 3D" button on its card. List the
+phone's device id in `.env` as `PATI_DEVICES=<device id>:<name shown>` and point the app to
+`http://<this computer>:8767/`. To test it on land, `python3 tools/simulate_pati.py` sails a
+simulated patí off the Barceloneta.

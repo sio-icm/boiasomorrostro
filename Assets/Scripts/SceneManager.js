@@ -311,6 +311,7 @@ class SceneManager{
   // USER INTERACTIONS
   // Reposition camera
   focusOnBuoy = function(){
+    this.followed = undefined; // Stops following a vessel (see follow)
     // Tween camera position
     new TWEEN.Tween(this.camera.position)
       .to({ x: 15, y: 10, z: 15 }, 4000)
@@ -336,6 +337,7 @@ class SceneManager{
       .start();
   }
   faceNorthward = function(){
+    this.followed = undefined; // Stops following a vessel (see follow)
     // Tween camera position to face northward
     let dist = this.camera.position.distanceTo(this.controls.target);
     let newZ = Math.sqrt(dist * dist - Math.pow(this.camera.position.y-this.controls.target.y, 2));
@@ -363,6 +365,7 @@ class SceneManager{
 
   // Turns the camera around its target to look at a compass bearing, keeping its distance and height
   faceBearing = function(bearing){
+    this.followed = undefined; // Stops following a vessel (see follow)
     const target = this.controls.target, position = this.camera.position;
     const horizontalDistance = Math.hypot(position.x - target.x, position.z - target.z);
     const start = this.getCameraBearing();
@@ -462,6 +465,20 @@ class SceneManager{
 
 
 
+    // Vessels (the patí sails between reports and rides the waves)
+    if (this.aisVesselsManager) {
+      this.aisVesselsManager.update(dt, this.ocean, this.windDirection);
+    }
+    // Follow mode: the camera keeps its offset to the followed vessel
+    if (this.followed) {
+      const position = this.followed.root.position;
+      const delta = position.clone().sub(this.followedPosition);
+      this.followedPosition.copy(position);
+      this.camera.position.add(delta);
+      this.controls.target.add(delta);
+      this.controls.update();
+    }
+
     // Flag updates
     if (this.flag && this.camera.position.y > 0) {
       if (this.flag.isLoaded && this.flag.root.visible) {
@@ -484,6 +501,23 @@ class SceneManager{
   }
 
 
+
+
+
+  // FOLLOW A VESSEL
+  // Places the camera behind and above the vessel (by MMSI) and keeps following it; undefined stops
+  follow = function(mmsi){
+    const vessel = mmsi == undefined ? undefined : this.aisVesselsManager.ships[mmsi];
+    this.followed = vessel?.root ? vessel : undefined;
+    if (this.followed == undefined) return false;
+    const root = this.followed.root;
+    const behind = new THREE.Vector3(-Math.cos(root.rotation.y), 0, Math.sin(root.rotation.y)).multiplyScalar(16);
+    this.followedPosition = root.position.clone();
+    this.controls.target.copy(root.position).add(new THREE.Vector3(0, 2, 0));
+    this.camera.position.copy(root.position).add(behind).add(new THREE.Vector3(0, 6, 0));
+    this.controls.update();
+    return true;
+  }
 
 
 

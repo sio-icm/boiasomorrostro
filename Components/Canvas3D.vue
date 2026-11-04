@@ -118,6 +118,8 @@ export default {
       }
       // Wind
       // Ocean steepness
+      // Where the wind comes from, for the patí's sail (see PatiEntity)
+      if (dataInTimestamp['WDIR'] != undefined) this.sceneManager.windDirection = dataInTimestamp['WDIR'];
       if (dataInTimestamp['WSPD'] && this.sceneManager.ocean){
         let windKMH = dataInTimestamp['WSPD'] * 3.6;
         let steepness = 0.05 + 0.25 * Math.min(1, windKMH / 25);
