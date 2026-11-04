@@ -131,6 +131,7 @@ export default es = {
   "See observations": "Ver observaciones",
   "Loading": "Cargando",
   "No data": "Sin datos",
+  "Show or hide legend": "Mostrar u ocultar la leyenda",
   "Centre on the buoy": "Centrar en la boya",
   "Ships": "Barcos",
   "Cargo": "Carga",

@@ -129,6 +129,7 @@ export default en = {
   "See observations": "See observations",
   "Loading": "Loading",
   "No data": "No data",
+  "Show or hide legend": "Show or hide legend",
   "Centre on the buoy": "Centre on the buoy",
   "Ships": "Ships",
   "Cargo": "Cargo",

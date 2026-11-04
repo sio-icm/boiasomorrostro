@@ -282,14 +282,19 @@ export default {
     createForecastControl() {
       const control = L.control({ position: 'bottomleft' });
       control.onAdd = () => {
+        // The legends fold away by tapping the header, folded from the start on narrow screens
         const container = L.DomUtil.create('div', 'map-forecast-control');
+        if (window.innerWidth < 770) container.classList.add('collapsed');
         container.innerHTML = `
-          <div class="map-forecast-header">${this.$i18n.t("Forecast")} <b class="map-forecast-time"></b></div>
+          <div class="map-forecast-header" role="button" title="${this.$i18n.t("Show or hide legend")}">
+            <div>${this.$i18n.t("Forecast")} <i class="map-forecast-chevron">&#9662;</i></div><b class="map-forecast-time"></b>
+          </div>
           <input type="range" min="0" max="${this.forecastTimes.length - 1}" step="1">
           <div class="map-forecast-legends"></div>`;
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
         container.querySelector('input').addEventListener('input', (e) => this.setForecastHour(parseInt(e.target.value)));
+        container.querySelector('.map-forecast-header').addEventListener('click', () => container.classList.toggle('collapsed'));
         return container;
       };
       return control;
@@ -533,6 +538,23 @@ export default {
   display: flex;
   justify-content: space-between;
   gap: 6px;
+  cursor: pointer;
+}
+.map-forecast-chevron {
+  display: inline-block;
+  font-style: normal;
+  transition: transform 0.2s;
+}
+.map-forecast-control.collapsed .map-forecast-chevron {
+  transform: rotate(-90deg);
+}
+.map-forecast-control.collapsed .map-forecast-legends {
+  display: none;
+}
+@media screen and (max-width: 770px) {
+  .map-forecast-control {
+    width: 180px;
+  }
 }
 .map-forecast-control input {
   width: 100%;
