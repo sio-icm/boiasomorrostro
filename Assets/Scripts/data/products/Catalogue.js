@@ -161,8 +161,8 @@ const dataProducts = [
       ...adcpCurrentVariables(),
     ],
     // Same sensors on both servers; whichever is ahead answers first (see DPBuoys).
-    // datasetCommonKey discovers every buoy the server hosts (same as VISOC's
-    // SourceErddapBuoys); buoyId then limits actual data-fetching to SOMO.
+    // datasetCommonKey is the prefix of the buoys' datasets (same as VISOC's
+    // SourceErddapBuoys); buoyId limits discovery and data-fetching to SOMO.
     sources: [
       {
         Class: SourceErddapBuoys,

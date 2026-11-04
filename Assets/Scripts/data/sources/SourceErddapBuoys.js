@@ -91,7 +91,10 @@ class SourceErddapBuoys extends Source {
   // loadSensorData / sensorLoadingPromise).
   async discover() {
     const allDatasets = await this.fetchAllDatasets();
-    const buoyDatasets = allDatasets.filter(d => d['datasetID'].startsWith(this.datasetCommonKey));
+    // Only buoyId's sensors when given: the server hosts the whole network, and asking for
+    // every other buoy's metadata took ~100 requests that nothing used
+    const prefix = this.buoyId ? `${this.datasetCommonKey}${this.buoyId}_` : this.datasetCommonKey;
+    const buoyDatasets = allDatasets.filter(d => d['datasetID'].startsWith(prefix));
 
     // Fetch every sensor's info in parallel, but only group them into buoys
     // afterward, synchronously - doing the grouping inside the parallel map
