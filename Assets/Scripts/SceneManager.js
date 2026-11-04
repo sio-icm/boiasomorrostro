@@ -24,6 +24,7 @@ import { TextMeshEntity } from '/boiasomorrostro/Assets/TextMesh/TextMeshEntity.
 import { AISVesselsManager } from '/boiasomorrostro/Assets/AISVessels/AISVesselsManager.js';
 import { sunPosition } from '/boiasomorrostro/Assets/Scripts/SunPosition.js';
 import { CityLights } from '/boiasomorrostro/Assets/Terrain/CoastLine/CityLights.js';
+import { WindStreaks } from '/boiasomorrostro/Assets/Wind/WindStreaks.js';
 
 // Light by the height of the sun (degrees), interpolated between these states:
 //  tint      multiplies the sky panorama, the air and the sky the sea reflects
@@ -142,6 +143,8 @@ class SceneManager{
     });
     // Buoy
     this.somorrostroBuoy = new SomorrostroBuoyEntity(scene);
+    // The wind, as streaks over the sea (see Canvas3D.applyWind for its speed and direction)
+    this.windStreaks = new WindStreaks(scene);
 
     // Flag
     // this.flag = new FlagEntity(scene, () => {
@@ -489,6 +492,9 @@ class SceneManager{
 
 
 
+    // Wind streaks, around where the camera looks
+    this.windStreaks?.update(dt, this.controls.target, this.windDirection, this.windSpeed, this.skyDaylight, this.renderer);
+
     // Vessels (the patí sails between reports and rides the waves)
     if (this.aisVesselsManager) {
       this.aisVesselsManager.update(dt, this.ocean, this.windDirection);
@@ -626,6 +632,7 @@ class SceneManager{
     this.sunLight.position.copy(sunDirection).multiplyScalar(100);
     this.sunLight.target.position.set(0, 0, 0);
     // City lights: on from a little after sunset (sun 1º below the horizon) to full at 8º below
+    this.skyDaylight = sky.daylight; // For the wind streaks
     this.cityLights?.setNight(Math.min(1, Math.max(0, (-elevation - 1) / 7)));
     // Sea
     this.ocean.setSky({ sunDirection, sunColor: sky.sun, daylight: sky.daylight, skyTint: sky.tint });
