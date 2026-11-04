@@ -15,6 +15,7 @@ const HEIGHT = [0.4, 5];        // m above the sea: low, so they read over the w
 const LIFE = [2.5, 6];          // s
 const CALM = 0.5;               // m/s: below, no streaks
 const WIDTH = 0.07;             // m
+const NEAR = [6, 25];           // m from the camera: fading in between, so none crosses the view as a thick bar
 
 function speedColor(speed) {
   const scale = window.PARTICLES_COLOR_SCALES?.wind;
@@ -66,8 +67,8 @@ class WindStreaks {
   }
 
   // center: where the camera looks; windFrom: degrees; speed: m/s; daylight: 0 night to 1 day;
-  // renderer: for the size of the canvas, which fat lines need
-  update(dt, center, windFrom, speed, daylight = 1, renderer) {
+  // renderer: for the size of the canvas, which fat lines need; camera: to fade the closest ones
+  update(dt, center, windFrom, speed, daylight = 1, renderer, camera) {
     if (renderer) renderer.getDrawingBufferSize(this.material.resolution);
     dt = Math.min(dt, 0.1);
     this.center.set(center.x, 0, center.z);
@@ -87,7 +88,11 @@ class WindStreaks {
       const dx = streak.position.x - this.center.x, dz = streak.position.z - this.center.z;
       if (streak.age > streak.life || Math.abs(dx) > AREA / 2 || Math.abs(dz) > AREA / 2) this.spawn(streak, false);
       // Fades in and out over its life; the head bright, the tail dark
-      const fade = Math.sin(Math.PI * streak.age / streak.life) * strength;
+      let fade = Math.sin(Math.PI * streak.age / streak.life) * strength;
+      if (camera) {
+        const near = Math.min(1, Math.max(0, (streak.position.distanceTo(camera.position) - NEAR[0]) / (NEAR[1] - NEAR[0])));
+        fade *= near * near * (3 - 2 * near);
+      }
       const p = streak.position, o = i * 6;
       this.positions.set([p.x, p.y, p.z, p.x + tail.x, p.y, p.z + tail.z], o);
       this.colors.set([r * fade, g * fade, b * fade, 0, 0, 0], o);
