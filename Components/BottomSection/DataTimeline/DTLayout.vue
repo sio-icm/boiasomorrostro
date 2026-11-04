@@ -37,8 +37,10 @@
 
       <!-- Timeline container -->
       <div class="horizontal table-container" ref="tableContainer">
-        <div class="vertical timeline-inner">
+        <div class="vertical timeline-inner" ref="timelineInner">
           <slot name="grid" :cells="cells"></slot>
+          <!-- The app's moment (see GUIManager.selectedTime), when another than now: its column -->
+          <div v-if="selectedCellIndex >= 0" class="selected-cell" :style="{ left: selectedCellIndex * cellWidth + 'px', width: cellWidth + 'px' }"></div>
           <!-- Current time marker, non-interactive. Hidden when now falls
                outside the range (the buoy can lag days behind). -->
           <div v-if="isNowInRange" class="now-line" :style="{ left: nowLineLeft + 'px' }"></div>
@@ -118,6 +120,9 @@ export default {
       const container = this.$refs.tableSlidingContainer;
       this.startX = pageX - container.offsetLeft;
       this.scrollLeft = container.scrollLeft;
+      // A tap (not a drag) on a column picks its moment
+      this.tapStart = { pageX, clientX: e.type === 'touchstart' ? e.touches[0].clientX : e.clientX };
+      this.moved = false;
 
       // Add global listeners so dragging continues even if mouse leaves the div
       window.addEventListener('mousemove', this.onDragging);
@@ -135,19 +140,39 @@ export default {
       const container = this.$refs.tableSlidingContainer;
 
       const x = pageX - container.offsetLeft;
+      if (Math.abs(pageX - this.tapStart.pageX) > 5) this.moved = true;
       // Multiplier makes the scroll speed feel more responsive
       const walk = (x - this.startX) * 1.5;
       container.scrollLeft = this.scrollLeft - walk;
     },
     stopDragging() {
+      if (this.isDragging && !this.moved && this.tapStart) this.pickCell(this.tapStart.clientX);
       this.isDragging = false;
       window.removeEventListener('mousemove', this.onDragging);
       window.removeEventListener('touchmove', this.onDragging);
       window.removeEventListener('mouseup', this.stopDragging);
       window.removeEventListener('touchend', this.stopDragging);
     },
+    // The column under a point of the screen sets the app's moment (see GUIManager.selectedTime)
+    pickCell(clientX) {
+      const inner = this.$refs.timelineInner;
+      if (!inner) return;
+      const index = Math.floor((clientX - inner.getBoundingClientRect().left) / CELL_WIDTH_PX);
+      if (this.cells[index]) this.$gui.selectedTime = this.cells[index];
+    },
   },
   computed: {
+    cellWidth() {
+      return CELL_WIDTH_PX;
+    },
+    // Column of the app's moment, -1 when it is now or outside the range
+    selectedCellIndex() {
+      const selected = this.$gui.selectedTime;
+      if (!selected) return -1;
+      const cellMs = this.$gui.timelineIntervalMinutes * 60 * 1000;
+      const index = Math.floor((selected - this.startDate.getTime()) / cellMs);
+      return index >= 0 && index < this.cells.length ? index : -1;
+    },
     // One column per time step. Owned here so the names column, the grid and
     // the now-line all measure the same range.
     cells() {
@@ -219,6 +244,15 @@ export default {
   position: relative;
 }
 
+.selected-cell {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 0 0 2px var(--darkBlue);
+  pointer-events: none;
+  z-index: 2;
+}
 .now-line {
   position: absolute;
   top: 0;

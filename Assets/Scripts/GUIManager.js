@@ -41,6 +41,36 @@ class GUIManager {
   // Compact hides the secondary timeline variables (see Catalogue's `compact`)
   get isCompact() { return this._panelState != 'fullscreen'; }
 
+  // THE MOMENT shown by the whole app: the 3D (sky, sea), the map's forecasts, the "now" card
+  // and the timelines' mark. undefined follows the present. From TIME_PAST_HOURS ago (the
+  // observations) to TIME_FUTURE_HOURS ahead (the forecasts), by the hour
+  timePastHours = 72;
+  timeFutureHours = 48;
+  _selectedTime = undefined;
+  get selectedTime() { return this._selectedTime; }
+  set selectedTime(date) {
+    if (date) {
+      date = new Date(date);
+      date.setMinutes(0, 0, 0);
+      const now = this.currentHour;
+      const min = now.getTime() - this.timePastHours * 3600e3, max = now.getTime() + this.timeFutureHours * 3600e3;
+      date = new Date(Math.min(max, Math.max(min, date.getTime())));
+      if (date.getTime() === now.getTime()) date = undefined;
+    }
+    this._selectedTime = date;
+    if (date) window.location.setHashValue('TIME', date.toISOString().slice(0, 13) + 'Z');
+    else window.location.removeHash('TIME');
+    // For what isn't a Vue component (the 3D scene, the map)
+    window.eventBus.emit('GUIManager_timeChanged', date);
+  }
+  // The moment as a date (the present hour when following it)
+  get moment() { return this._selectedTime || this.currentHour; }
+  get currentHour() {
+    const now = new Date();
+    now.setMinutes(0, 0, 0);
+    return now;
+  }
+
   // TIMELINE SCALE
   _timelineScaleId = '1h';
   get timelineScaleId() { return this._timelineScaleId; }
@@ -143,6 +173,10 @@ class GUIManager {
     let panelState = window.location.getHashValue('PANEL');
     if (panelState != undefined && this.panelStates.includes(panelState.toLowerCase()))
       this._panelState = panelState.toLowerCase();
+    // Moment <TIME=2026-11-04T18Z>
+    let time = window.location.getHashValue('TIME');
+    if (time != undefined && !isNaN(Date.parse(time.replace(/Z$/, ':00Z'))))
+      this._selectedTime = new Date(Date.parse(time.replace(/Z$/, ':00Z')));
     // Write back the state the app starts with
     this.selectedSection = this._selectedSection;
     this.panelState = this._panelState;

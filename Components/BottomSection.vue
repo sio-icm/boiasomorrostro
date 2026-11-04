@@ -2,6 +2,7 @@
   <!-- Data panel, docked at the bottom: tabs on top, and its height changes between collapsed
        (tabs only), compact and fullscreen by dragging or tapping the handle, or with the buttons -->
   <div id="bottom-section" :class="'panel-' + $gui.panelState">
+    <time-control></time-control>
     <div class="panel-header">
       <div class="panel-handle" @pointerdown="dragStart" :title="$t(isSectionOpen ? 'Collapse' : 'Expand')"><span></span></div>
       <div class="panel-bar">
@@ -41,6 +42,7 @@ import WindSection from './BottomSection/WindSection.vue';
 import MapBuoyLocation from './BottomSection/MapBuoyLocation.vue';
 import AboutPanel from './BottomSection/AboutPanel.vue';
 import HistorySection from './BottomSection/HistorySection.vue';
+import TimeControl from './TimeControl.vue';
 
 
 export default {
@@ -206,6 +208,7 @@ export default {
     "mapBuoyLocation": MapBuoyLocation,
     "about": AboutPanel,
     "historySection": HistorySection,
+    "time-control": TimeControl,
     
   }
 }
