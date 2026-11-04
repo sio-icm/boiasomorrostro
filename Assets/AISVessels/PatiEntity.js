@@ -77,7 +77,7 @@ function sailGeometry() {
     for (let c = 0; c <= COLUMNS; c++) {
       const u = c / COLUMNS;
       const point = luff.clone().lerp(leech, u);
-      point.z = 0.32 * (1 - h) * Math.sin(Math.PI * u) ** 1.2; // Belly, deeper low down
+      point.z = 0.22 * (1 - h) * Math.sin(Math.PI * u) ** 1.2; // Belly, deeper low down
       vertices.push(point.x, point.y, point.z);
       uvs.push(u, h);
     }
@@ -267,7 +267,8 @@ class PatiEntity extends MovingVessel {
     if (windFrom != undefined && this.heading != undefined) {
       const relative = ((windFrom - this.heading + 540) % 360) - 180; // + wind from starboard
       const side = relative > 0 ? -1 : 1; // Leeward: -1 port (-Z), +1 starboard (+Z)
-      const angle = THREE.MathUtils.degToRad(Math.min(85, Math.max(8, (Math.abs(relative) - 30) * 0.6 + 8)));
+      // From 10º close-hauled to 80º running: about half the angle to the wind beyond 45º
+      const angle = THREE.MathUtils.degToRad(Math.min(80, 10 + Math.max(0, Math.abs(relative) - 45) * 0.52));
       this.rig.rotation.y += (side * angle - this.rig.rotation.y) * Math.min(1, dt * 2);
       this.sail.scale.z = side; // Belly to leeward
       this.sailor.position.z = -side * HULL_SPACING / 2;
