@@ -15,7 +15,7 @@ const UNITS_STORAGE_KEY = 'boiasomorrostro_units';
 class GUIManager {
 
   timescales = TIMESCALES;
-  sections = ['forecast', 'observations', 'wind', 'map', 'about'];
+  sections = ['forecast', 'observations', 'history', 'wind', 'map', 'about'];
   panelStates = ['fullscreen', 'compact', 'hidden'];
   // Sections that show a data timeline, and therefore a time scale
   timelineSections = ['forecast', 'observations'];
