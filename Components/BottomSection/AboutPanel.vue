@@ -24,7 +24,7 @@
       {{ $t('contact-buoy-data') }} {{ emailObs }}@{{ emailProviderIcatmar }}.
     </p>
     <div class="logos-container">
-      <img src="img/logos/SIO.png" alt="SIO">
+      <img class="sio-logo" :src="'img/logos/SIO-' + logoLang + '.png'" alt="SIO">
       <img src="img/logos/icm.png" alt="ICM-CSIC">
       <img src="img/logos/CSIC.png" alt="CSIC">
     </div>
@@ -85,6 +85,12 @@ export default {
       emailObs: 'observacions',
       emailProviderIcatmar: 'icatmar.cat'
     }
+  },
+  computed: {
+    // The SIO's logo exists in Spanish, Catalan and English
+    logoLang() {
+      return ['es', 'ca', 'en'].find(code => this.$i18n.locale.startsWith(code)) || 'en';
+    },
   },
   methods: {
 
@@ -154,5 +160,10 @@ p {
   padding-right: 2%;
   max-width: 150px;
   max-height: 60px;
+}
+.logos-container > img.sio-logo {
+  width: 35%;
+  max-width: 240px;
+  max-height: 80px;
 }
 </style>
