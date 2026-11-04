@@ -1,0 +1,15 @@
+# systemd service for boia_server.py. Copy to /etc/systemd/system/ and adjust User and the paths
+[Unit]
+Description=Boia Somorrostro: ERDDAP proxy, AIS feed and patí positions
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=boia
+WorkingDirectory=/opt/boiasomorrostro
+ExecStart=/opt/boiasomorrostro/venv/bin/python boia_server.py 8766 8767
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

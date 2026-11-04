@@ -39,6 +39,10 @@ import WMTSTileManagerClass from './Assets/Scripts/WMTS/WMTSTileManager.js'
 window.WMTSTileManager = new WMTSTileManagerClass();
 
 
+// Server addresses, also for the .vue components (they can't import modules)
+import * as BoiaConfig from './Assets/Scripts/config.js';
+window.BoiaConfig = BoiaConfig;
+
 // Import AISManager
 import AISManagerClass from './Assets/Scripts/AIS/AISManager.js';
 window.AISManager = new AISManagerClass();

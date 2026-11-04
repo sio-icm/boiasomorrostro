@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sails a simulated patí de vela off the Barceloneta, sending its positions to ais_relay.py
+"""Sails a simulated patí de vela off the Barceloneta, sending its positions to boia_server.py
 as the Traccar Client phone app would (OsmAnd protocol), so the whole path can be tested on land.
 
 Usage: python3 tools/simulate_pati.py [relay patí URL]   (default http://localhost:8767/)

@@ -24,7 +24,6 @@ const NETWORK_BUOYS = [
   { id: 'CDCR', name: 'Cap de Creus', latlng: [42.3212, 3.3495] },
 ];
 const ERDDAP = 'https://erddap.icatmar.cat/erddap/tabledap/';
-const PROXY_URL = ['localhost', '127.0.0.1'].includes(location.hostname) ? '/proxy/' : 'https://api.icatmar.cat/proxy/';
 const ROSE_SECTORS = 16;
 
 export default {
@@ -559,7 +558,7 @@ export default {
     async loadNetworkBuoy(buoy) {
       const latest = (sensor, columns) => {
         const url = `${ERDDAP}BUOY_${buoy.id}_${sensor}.csv?time,${columns}&orderByMax("time")`;
-        return fetch(PROXY_URL + '?url=' + encodeURIComponent(url)).then(res => res.ok ? res.text() : '').then(text => {
+        return fetch(window.BoiaConfig.proxied(url)).then(res => res.ok ? res.text() : '').then(text => {
           const lines = text.trim().split('\n');
           if (lines.length < 3) return undefined;
           const cells = lines[2].split(',');
@@ -607,7 +606,7 @@ export default {
         interactive: false, color: '#0f3062', weight: 1, opacity: 0.35, dashArray: '2 6', fill: false,
       }))).addTo(this.map);
     },
-    // Boats without AIS whose position comes from a phone (see ais_relay.py)
+    // Boats without AIS whose position comes from a phone (see boia_server.py)
     isPati(ship) {
       return String(ship.MMSI).startsWith('PATI-');
     },

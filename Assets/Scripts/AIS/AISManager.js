@@ -1,5 +1,6 @@
 
 import shipTypes from './AISShipTypes.js';
+import { AIS_URL } from '/boiasomorrostro/Assets/Scripts/config.js';
 
 
 export class AISManager {
@@ -29,12 +30,8 @@ export class AISManager {
 
     // Connection
     this.ws;
-    // ICATMAR's server only accepts its own website: locally, ais_relay.py serves the same feed from aisstream.io
-    if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-      this.ws = new WebSocket('ws://localhost:8766');
-    } else {
-      this.ws = new WebSocket('wss://api.icatmar.cat/ais');
-    }
+    // ICATMAR's feed only accepts its own website: elsewhere boia_server.py serves the same (see config.js)
+    this.ws = new WebSocket(AIS_URL);
     this.isCreated = true;
 
     // General connection events

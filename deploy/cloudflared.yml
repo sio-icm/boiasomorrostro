@@ -1,0 +1,14 @@
+# Cloudflare Tunnel: HTTPS on a public name for the server, without opening ports.
+# Copy to ~/.cloudflared/config.yml and fill in the tunnel id and the name (see README.md)
+tunnel: <TUNNEL-ID>
+credentials-file: /home/boia/.cloudflared/<TUNNEL-ID>.json
+
+ingress:
+  # AIS feed (WebSocket)
+  - hostname: boia.example.org
+    path: ^/ais
+    service: http://localhost:8766
+  # ERDDAP proxy and patí positions
+  - hostname: boia.example.org
+    service: http://localhost:8767
+  - service: http_status:404
