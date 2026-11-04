@@ -294,7 +294,9 @@ export default {
       const angleDiff = Math.abs(((waves.wave_direction - waves.wind_wave_direction + 540) % 360) - 180);
       ocean.updateDirectionalSpread(Math.min(90, Math.max(25, 25 + angleDiff * windShare)));
       ocean.updateSteepness(0.05 + 0.25 * windShare);
-      this.generateSwell(waves.swell_wave_height || 0.05, waves.swell_wave_direction ?? waves.wave_direction);
+      // The 16 waves already make up the whole sea, swell included; the swell's own (perfectly
+      // regular) wave only hints at it, or it shows as even bands
+      this.generateSwell(Math.max(0.05, (waves.swell_wave_height || 0) * 0.35), waves.swell_wave_direction ?? waves.wave_direction);
       // A small secondary swell crossing the main one looks like a grid of bumps rather than a
       // sea: only shown when it's at least a third of the main swell
       const primary = waves.swell_wave_height || 0, secondary = waves.secondary_swell_wave_height || 0;
