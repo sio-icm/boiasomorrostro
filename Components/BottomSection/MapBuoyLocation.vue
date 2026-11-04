@@ -16,6 +16,16 @@ const SHIP_CATEGORIES = [
   { label: "Other", color: '#7d8a99', matches: () => true },
 ];
 const TRAIL_POINTS = 40; // positions kept for each ship's trail
+// Other buoys of ICATMAR's network on the same ERDDAP, with the latest of each one shown on its card
+const NETWORK_BUOYS = [
+  { id: 'TORD', name: 'Tordera', latlng: [41.5997, 2.7698] },
+  { id: 'TARR', name: 'Tarragona', latlng: [41.076267, 1.346883] },
+  { id: 'TORT', name: 'Cap de Tortosa', latlng: [40.71485, 0.985183] },
+  { id: 'CDCR', name: 'Cap de Creus', latlng: [42.3212, 3.3495] },
+];
+const ERDDAP = 'https://erddap.icatmar.cat/erddap/tabledap/';
+const PROXY_URL = ['localhost', '127.0.0.1'].includes(location.hostname) ? '/proxy/' : 'https://api.icatmar.cat/proxy/';
+const ROSE_SECTORS = 16;
 
 export default {
   name: "MapComponent",
@@ -100,6 +110,12 @@ export default {
     Object.values(this.forecasts).forEach(forecast => overlays[this.$i18n.t(forecast.label)] = forecast.group);
     overlays[this.$i18n.t("Isobaths")] = isobaths;
     overlays[this.$i18n.t("Nautical marks")] = seamarks;
+    // Wind rose of the buoy's last days of data, around it (see drawWindRose)
+    this.windRoseLayer = L.layerGroup().addTo(map);
+    overlays[this.$i18n.t("Wind rose")] = this.windRoseLayer;
+    // The other buoys of the network
+    this.networkLayer = L.layerGroup(NETWORK_BUOYS.map(buoy => this.createNetworkBuoy(buoy, buoyLatLng)));
+    overlays[this.$i18n.t("ICATMAR buoys")] = this.networkLayer;
     // Ships from AIS, with their recent trails (see handleAISMessage)
     this.shipsLayer = L.layerGroup().addTo(map);
     overlays[this.$i18n.t("Ships")] = this.shipsLayer;
@@ -140,12 +156,15 @@ export default {
     }).addTo(map);
     this.updateViewCone();
     window.eventBus.on('Canvas3D_cameraChange', this.updateViewCone);
+    // It also measures the distance and bearing from the buoy to that point
+    this.measure = L.polyline([], { interactive: false, color: '#0f3062', weight: 2, dashArray: '6 6' }).addTo(map);
     map.on('click', (e) => {
-      const sceneManager = window.sceneManager;
-      if (!sceneManager) return;
-      const north = (e.latlng.lat - buoyLatLng[0]) * 111320;
-      const east = (e.latlng.lng - buoyLatLng[1]) * 111320 * Math.cos(buoyLatLng[0] * Math.PI / 180);
-      sceneManager.faceBearing(Math.atan2(east, north) * 180 / Math.PI);
+      const bearing = this.bearingFromBuoy(buoyLatLng, e.latlng);
+      window.sceneManager?.faceBearing(bearing);
+      this.measure.setLatLngs([buoyLatLng, e.latlng]);
+      this.measure.bindTooltip(`${this.formatDistance(map.distance(buoyLatLng, e.latlng))} · ${Math.round((bearing + 360) % 360)}°`, {
+        permanent: true, direction: 'top', className: 'map-measure', offset: [0, -6],
+      }).openTooltip(e.latlng);
     });
 
     // Area covered by the AIS feed, faintly
@@ -335,7 +354,7 @@ export default {
     loadBuoyData() {
       const buoy = this.$dataService.buoy;
       buoy.sensorLoadPromises().forEach(({ promise }) => promise.then(() => this.updateBuoyData()));
-      buoy.ready().then(() => { this.buoyReady = true; this.updateBuoyData(); });
+      buoy.ready().then(() => { this.buoyReady = true; this.updateBuoyData(); this.drawWindRose(); });
     },
     // Latest observation of each variable shown in the card (see DPBuoys.latestRow)
     updateBuoyData() {
@@ -388,6 +407,117 @@ export default {
     // Recompute Leaflet's internal size after the container has resized
     invalidateMapSize() {
       this.map.invalidateSize();
+    },
+    // DISTANCES
+    bearingFromBuoy(buoyLatLng, latlng) {
+      const north = (latlng.lat - buoyLatLng[0]) * 111320;
+      const east = (latlng.lng - buoyLatLng[1]) * 111320 * Math.cos(buoyLatLng[0] * Math.PI / 180);
+      return Math.atan2(east, north) * 180 / Math.PI;
+    },
+    formatDistance(metres) {
+      const nauticalMiles = (metres / 1852).toFixed(1);
+      return metres < 1000 ? `${Math.round(metres)} m` : `${(metres / 1000).toFixed(1)} km (${nauticalMiles} NM)`;
+    },
+    // WIND ROSE
+    // How often the wind blew from each of 16 directions in the buoy's last days of data
+    // (petal length), and how strong (colour, the wind scale of the forecast)
+    drawWindRose() {
+      const source = this.$dataService.buoy.sources
+        .map(source => source.findSensorFor('WSPD')?.sensor)
+        .filter(sensor => sensor?.rows.length)
+        .sort((a, b) => b.rows[b.rows.length - 1].date - a.rows[a.rows.length - 1].date)[0];
+      if (source == undefined) return;
+      const rows = source.rows.filter(row => row.values.WSPD != undefined && row.values.WDIR != undefined);
+      if (rows.length === 0) return;
+      const counts = new Array(ROSE_SECTORS).fill(0), speeds = new Array(ROSE_SECTORS).fill(0);
+      rows.forEach(({ values }) => {
+        const sector = Math.round(values.WDIR / (360 / ROSE_SECTORS)) % ROSE_SECTORS;
+        counts[sector]++;
+        speeds[sector] += values.WSPD;
+      });
+      const max = Math.max(...counts);
+      const size = 150, center = size / 2, inner = 16, outer = center - 4, half = Math.PI / ROSE_SECTORS * 0.85;
+      const point = (angle, radius) => `${(center + radius * Math.sin(angle)).toFixed(1)},${(center - radius * Math.cos(angle)).toFixed(1)}`;
+      const petals = counts.map((count, sector) => {
+        if (count === 0) return '';
+        const angle = sector * 2 * Math.PI / ROSE_SECTORS, radius = inner + (outer - inner) * count / max;
+        const [r, g, b] = this.windColor(speeds[sector] / count);
+        return `<path d="M${point(angle - half, inner)} L${point(angle - half, radius)} A${radius},${radius} 0 0 1 ${point(angle + half, radius)}
+          L${point(angle + half, inner)} A${inner},${inner} 0 0 0 ${point(angle - half, inner)} Z" fill="rgb(${r},${g},${b})"/>`;
+      }).join('');
+      this.windRoseLayer.clearLayers();
+      L.marker(this.buoyMarker.getLatLng(), {
+        interactive: false, zIndexOffset: -1000,
+        icon: L.divIcon({
+          className: 'map-wind-rose', iconSize: [size, size],
+          html: `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+            <circle cx="${center}" cy="${center}" r="${outer}" class="map-wind-rose-ring"/>
+            <circle cx="${center}" cy="${center}" r="${(inner + outer) / 2}" class="map-wind-rose-ring"/>${petals}</svg>`,
+        }),
+      }).addTo(this.windRoseLayer);
+    },
+    windColor(speed) {
+      const scale = window.PARTICLES_COLOR_SCALES.wind;
+      for (let k = 1; k < scale.length; k++) {
+        if (speed <= scale[k][0]) {
+          const [s0, c0] = scale[k - 1], [s1, c1] = scale[k];
+          return c0.map((c, n) => Math.round(c + (c1[n] - c) * (speed - s0) / (s1 - s0)));
+        }
+      }
+      return scale[scale.length - 1][1];
+    },
+    // NETWORK BUOYS
+    createNetworkBuoy(buoy, buoyLatLng) {
+      const marker = L.marker(buoy.latlng, {
+        icon: L.divIcon({
+          className: 'map-network-buoy', iconSize: [16, 16],
+          html: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#f5c400" stroke="#0f3062" stroke-width="3"/></svg>`,
+        }),
+      });
+      buoy.distance = this.formatDistance(this.map.distance(buoyLatLng, buoy.latlng));
+      marker.bindPopup(() => this.networkCardHTML(buoy), { className: 'map-popup', minWidth: 190 });
+      marker.on('popupopen', () => {
+        if (buoy.data) return;
+        this.loadNetworkBuoy(buoy).then(() => marker.getPopup().update());
+      });
+      return marker;
+    },
+    // Latest row of the wind, wave and sea temperature sensors
+    async loadNetworkBuoy(buoy) {
+      const latest = (sensor, columns) => {
+        const url = `${ERDDAP}BUOY_${buoy.id}_${sensor}.csv?time,${columns}&orderByMax("time")`;
+        return fetch(PROXY_URL + '?url=' + encodeURIComponent(url)).then(res => res.ok ? res.text() : '').then(text => {
+          const lines = text.trim().split('\n');
+          if (lines.length < 3) return undefined;
+          const cells = lines[2].split(',');
+          return { date: new Date(cells[0]), values: cells.slice(1).map(parseFloat) };
+        }).catch(() => undefined);
+      };
+      const [wind, wave, ctd] = await Promise.all([
+        latest('GILL', 'WSPD_GILL,WDIR_GILL'), latest('WAVE', 'VHM0_WAVE,VMDR_WAVE'), latest('CTD', 'TEMP_CTD'),
+      ]);
+      buoy.data = { wind, wave, ctd };
+    },
+    networkCardHTML(buoy) {
+      const t = (key) => this.$i18n.t(key);
+      const data = buoy.data;
+      let body;
+      if (data == undefined) {
+        body = `<div class="map-card-date">${t("Loading")}...</div>`;
+      } else {
+        const dates = [data.wind, data.wave, data.ctd].filter(Boolean).map(row => row.date);
+        const arrow = (direction) => `<i class="map-card-arrow" style="transform: rotate(${direction + 180}deg)">&#8593;</i>`;
+        const value = (row, index, decimals, unit) => row == undefined || isNaN(row.values[index]) ? '-' : `${row.values[index].toFixed(decimals)} ${unit}`;
+        body = dates.length === 0 ? `<div class="map-card-date">${t("No data")}</div>` : `
+          <div class="map-card-date">${t("Last data")}: ${this.formatTimeAgo((Date.now() - Math.max(...dates)) / 60000)}</div>
+          <table class="map-card-table">
+            <tr><td>${t("Wind speed")}</td><td>${value(data.wind, 0, 1, 'm/s')} ${data.wind ? arrow(data.wind.values[1]) : ''}</td></tr>
+            <tr><td>${t("Wave height")}</td><td>${value(data.wave, 0, 1, 'm')} ${data.wave ? arrow(data.wave.values[1]) : ''}</td></tr>
+            <tr><td>${t("Sea temperature")}</td><td>${value(data.ctd, 0, 1, 'ºC')}</td></tr>
+          </table>`;
+      }
+      return `<div class="map-card"><div class="map-card-title">${t("Buoy")} ${buoy.name}</div>${body}
+        <div class="map-card-date">${t("From Somorrostro")}: ${buoy.distance}</div></div>`;
     },
     // SHIPS (AIS)
     drawAISCoverage() {
@@ -670,6 +800,30 @@ export default {
 .map-card-arrow {
   display: inline-block;
   font-style: normal;
+}
+.map-wind-rose svg {
+  opacity: 0.75;
+}
+.map-wind-rose-ring {
+  fill: none;
+  stroke: var(--darkBlue);
+  stroke-opacity: 0.25;
+  stroke-dasharray: 2 3;
+}
+.map-network-buoy svg {
+  width: 16px;
+  height: 16px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+.map-measure {
+  background: var(--darkBlue);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.7rem;
+}
+.map-measure::before {
+  border-top-color: var(--darkBlue);
 }
 .map-center-button {
   display: flex !important;
