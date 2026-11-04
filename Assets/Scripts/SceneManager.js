@@ -493,7 +493,7 @@ class SceneManager{
 
 
     // Wind streaks, around where the camera looks
-    this.windStreaks?.update(dt, this.controls.target, this.windDirection, this.windSpeed, this.skyDaylight, this.renderer);
+    this.windStreaks?.update(dt, this.controls.target, this.windDirection, this.windSpeed, this.skyDaylight, this.renderer, this.camera);
 
     // Vessels (the patí sails between reports and rides the waves)
     if (this.aisVesselsManager) {
