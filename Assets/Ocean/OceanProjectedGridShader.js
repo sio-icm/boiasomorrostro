@@ -46,7 +46,8 @@ export const OceanProjectedGridVertShader = /* glsl */ `
   // Shortest wavelength drawn, relative to the distance to the camera (fades between MIN and MAX)
   #define ANTIALIAS_MIN 0.08
   #define ANTIALIAS_MAX 0.2
-  precision lowp float;
+  // No precision here: three.js puts the device's best (highp, else mediump) in both shaders.
+  // Far from the buoy (following a ship) coordinates reach kilometres: lowp/mediump break the sea
 
   uniform float u_time;
   uniform vec3 u_imgSize;
@@ -251,7 +252,6 @@ export const OceanProjectedGridVertShader = /* glsl */ `
 
 export const OceanProjectedGridFragShader = /* glsl */`
 
-  precision mediump float; // lowp is too coarse for the sharp sun glint
 
   varying vec3 v_WorldPosition;
   varying vec3 v_Normal;
@@ -261,8 +261,8 @@ export const OceanProjectedGridFragShader = /* glsl */`
   varying float v_distToCam;
 
   uniform sampler2D u_normalTexture;
-  uniform lowp float u_time; // Same precision as in the vertex shader (required for shared uniforms)
-  uniform lowp float u_steepnessFactor; // Grows with the wind (see Canvas3D.vue), drives the amount of foam
+  uniform float u_time; // Same precision as in the vertex shader (required for shared uniforms)
+  uniform float u_steepnessFactor; // Grows with the wind (see Canvas3D.vue), drives the amount of foam
   uniform vec3 u_sunDirection;
   uniform vec3 u_sunColor;
   uniform float u_daylight;
@@ -365,8 +365,11 @@ export const OceanProjectedGridFragShader = /* glsl */`
     float underwaterFactor = (abs(cameraPosition.y)/cameraPosition.y)*0.5 + 0.5;
     // Fog underwater (Fog exp 2)
     float fogDepth = distance(v_WorldPosition, cameraPosition);
-    float fogDensity = u_fogDensity - u_fogDensity * 0.75 * underwaterFactor; // Lighter haze above water, so the horizon stays sharp
-    float fogFactor = 1.0 - exp( - fogDensity * fogDensity * fogDepth * fogDepth );
+    float fogUnderwater = 1.0 - exp( - u_fogDensity * u_fogDensity * fogDepth * fogDepth );
+    // Above water, a light haze over kilometres (not metres): the sea stays visible from a few
+    // hundred metres away (following a big ship) and still melts into the horizon
+    float fogAir = 1.0 - exp( - fogDepth / 5000.0 );
+    float fogFactor = mix(fogUnderwater, fogAir, underwaterFactor);
     vec3 fogAirColor = vec3(0.8, 0.93, 1.0) * u_skyTint;
     vec3 fogColor = mix(u_fogUnderwaterColor, fogAirColor, underwaterFactor) ;
 
