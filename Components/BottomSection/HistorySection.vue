@@ -42,8 +42,8 @@ const RANGES = [
 // Charts, top to bottom. Each series is a column of a buoy sensor's dataset (BUOY_SOMO_<sensor>)
 const CHARTS = [
   { id: 'wind', unit: 'm/s', series: [
-    { sensor: 'METEO', column: 'WSPD', label: 'wind', color: '#2f7fb5' },
-    { sensor: 'METEO', column: 'WDIR', label: 'direction', color: '#0f3062', direction: true },
+    { sensor: 'METEO', column: 'WSPD', label: 'wind', color: 'var(--lightBlue)' },
+    { sensor: 'METEO', column: 'WDIR', label: 'direction', color: 'var(--darkBlue)', direction: true },
   ] },
   { id: 'temperature', unit: 'ºC', series: [
     { sensor: 'METEO', column: 'DRYT', label: 'air', color: '#ef7d3c' },
@@ -199,8 +199,8 @@ export default {
         xAxes.push({ type: 'time', gridIndex: index, axisLabel: { show: index === charts.length - 1, fontSize: 10 },
           axisTick: { show: false }, splitLine: { show: false } });
         yAxes.push({ type: 'value', gridIndex: index, scale: true, splitNumber: 3, name: `${t(chart.id)}${chart.unit ? ` (${chart.unit})` : ''}`,
-          nameLocation: 'end', nameGap: 6, nameTextStyle: { align: 'left', fontSize: 11, fontWeight: 600, color: '#0f3062' },
-          axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(15,48,98,0.08)' } } });
+          nameLocation: 'end', nameGap: 6, nameTextStyle: { align: 'left', fontSize: 11, fontWeight: 600, color: 'var(--darkBlue)' },
+          axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(var(--darkBlueRGB), 0.08)' } } });
         chart.series.forEach(s => {
           const id = `${s.sensor}_${s.column}`;
           this.seriesFormat[id] = s.direction ? { unit: 'º', decimals: 0 }
@@ -221,15 +221,15 @@ export default {
       const allAxes = charts.map((_, index) => index);
       this.chart.setOption({
         animation: false,
-        textStyle: { fontFamily: 'Poppins, sans-serif' },
+        textStyle: { fontFamily: '"TT Commons", sans-serif' },
         grid: grids, xAxis: xAxes, yAxis: yAxes, series,
         tooltip: { trigger: 'axis', axisPointer: { type: 'line' }, confine: true, formatter: this.tooltip,
-          textStyle: { fontSize: 11, color: '#0f3062' }, extraCssText: 'border-radius: 10px; box-shadow: 0 4px 16px rgba(15,48,98,0.25);' },
-        axisPointer: { link: [{ xAxisIndex: 'all' }], lineStyle: { color: '#0f3062' } },
+          textStyle: { fontSize: 11, color: 'var(--darkBlue)' }, extraCssText: 'border-radius: 10px; box-shadow: 0 4px 16px rgba(var(--darkBlueRGB), 0.25);' },
+        axisPointer: { link: [{ xAxisIndex: 'all' }], lineStyle: { color: 'var(--darkBlue)' } },
         dataZoom: [
           { type: 'inside', xAxisIndex: allAxes },
           { type: 'slider', xAxisIndex: allAxes, bottom: 8, height: 22, borderColor: 'transparent',
-            fillerColor: 'rgba(47,127,181,0.2)', handleStyle: { color: '#2f7fb5' }, labelFormatter: '' },
+            fillerColor: 'rgba(47,127,181,0.2)', handleStyle: { color: 'var(--lightBlue)' }, labelFormatter: '' },
         ],
       }, true);
       this.$nextTick(() => this.chart.resize());
@@ -260,18 +260,18 @@ export default {
   padding-left: 70px; /* clear of the panel's close/fullscreen buttons */
 }
 .history-toolbar button {
-  padding: 2px 12px;
+  padding: 3px 12px 1px;
   background: white;
-  border: 1px solid rgba(15, 48, 98, 0.2);
-}
-.history-toolbar button span {
   color: var(--darkBlue);
+  border: 1px solid rgba(var(--darkBlueRGB), 0.25);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 500;
 }
 .history-toolbar button.selectedOption {
-  background: var(--red);
-}
-.history-toolbar button.selectedOption span {
+  background: var(--darkBlue);
   color: white;
+  box-shadow: none;
 }
 .history-info {
   display: flex;

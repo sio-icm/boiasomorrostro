@@ -215,7 +215,7 @@ export default {
 <style scoped>
 .data-timeline-container {
   min-width: 100%;
-  background: var(--lightBlue);
+  background: var(--grey);
   align-items: flex-start;
 }
 
@@ -268,7 +268,7 @@ export default {
   min-width: 145px;
   font-size: 0.7rem;
   height: 100%;
-  background: var(--lightBlue);
+  background: var(--grey);
   align-items: flex-end;
 }
 
@@ -289,14 +289,14 @@ export default {
   background: none;
   padding: 2px 3px;
   font-size: small;
-  color: white;
-  text-shadow: 0 0 4px black;
-  border-radius: 4px;
+  color: var(--darkBlue);
+  text-shadow: none;
+  border-radius: 3px;
   line-height: 1;
 }
 
 .zoom-btn:disabled {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(var(--darkBlueRGB), 0.35);
   text-shadow: none;
   cursor: default;
   transform: none;

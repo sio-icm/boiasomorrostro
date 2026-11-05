@@ -95,6 +95,7 @@ export default {
 
 .content {
   padding: 20px;
+  color: var(--darkBlue);
   overflow: auto;
   font-size: small;
   max-width: 800px;
@@ -114,6 +115,8 @@ p {
 }
 h5 {
   margin: 1.2rem 0 0.4rem;
+  color: var(--blue); /* Titles in the ICM's ultramarine */
+  font-weight: 700;
 }
 h5:first-child {
   margin-top: 0;

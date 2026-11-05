@@ -226,10 +226,11 @@ export default {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  background: rgb(200 240 255);
-  border-radius: 14px 14px 0 0;
+  background: white;
+  color: var(--darkBlue);
+  border-radius: 8px 8px 0 0;
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
-  margin-top: -14px; /* Over the 3D view's bottom edge, under the rounded corners */
+  margin-top: -8px; /* Over the 3D view's bottom edge, under the rounded corners */
   z-index: 5;
 }
 /* Fullscreen: tall, leaving a strip of the 3D view (Canvas3D absorbs the rest) */
@@ -239,8 +240,8 @@ export default {
 
 /* HEADER: handle and tabs */
 .panel-header {
-  background: var(--blue);
-  border-radius: 14px 14px 0 0;
+  background: var(--darkBlue);
+  border-radius: 8px 8px 0 0;
 }
 .panel-handle {
   display: flex;
@@ -268,10 +269,31 @@ export default {
   scrollbar-width: none;
   padding: 2px;
 }
+/* Tabs like the ICM's buttons: capitals, spaced, almost square; the open one white */
 .panel-tabs > button {
   flex-shrink: 0;
-  font-size: small;
-  padding: 2px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  padding: 5px 12px 3px;
+  margin-right: 2px;
+  color: white;
+}
+.panel-tabs > button > span {
+  color: inherit;
+  text-shadow: none;
+  font-size: inherit;
+  padding: 0;
+}
+.panel-tabs > button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: none;
+}
+.panel-tabs > button.selectedOption {
+  background: white;
+  color: var(--darkBlue);
+  box-shadow: none;
 }
 .panel-size-buttons {
   display: flex;

@@ -77,8 +77,8 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border-radius: 14px;
-  background: rgba(15, 48, 98, 0.6);
+  border-radius: 6px;
+  background: rgba(var(--darkBlueRGB), 0.7);
   backdrop-filter: blur(6px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   z-index: 6;
@@ -103,11 +103,11 @@ export default {
 .time-kind {
   font-size: 0.68rem;
   padding: 0 6px;
-  border-radius: 6px;
+  border-radius: 3px;
 }
 .time-kind.past { background: rgba(255, 255, 255, 0.2); }
 .time-kind.now { background: var(--red); }
-.time-kind.future { background: rgba(229, 57, 122, 0.6); }
+.time-kind.future { background: rgba(var(--lightBlueRGB), 0.85); }
 .time-center input {
   width: 100%;
   accent-color: white;
@@ -125,7 +125,7 @@ export default {
 }
 .time-now {
   border: none;
-  border-radius: 10px;
+  border-radius: 3px;
   padding: 4px 10px;
   background: var(--red);
   color: white;

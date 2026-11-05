@@ -1,0 +1,5 @@
+/* TT Commons, the typeface of the ICM (icm.csic.es), used under its licence */
+@font-face { font-family: "TT Commons"; font-weight: 400; font-display: swap; src: url(TTCommons-Regular.woff2) format("woff2"); }
+@font-face { font-family: "TT Commons"; font-weight: 500; font-display: swap; src: url(TTCommons-Medium.woff2) format("woff2"); }
+@font-face { font-family: "TT Commons"; font-weight: 600; font-display: swap; src: url(TTCommons-DemiBold.woff2) format("woff2"); }
+@font-face { font-family: "TT Commons"; font-weight: 700; font-display: swap; src: url(TTCommons-Bold.woff2) format("woff2"); }

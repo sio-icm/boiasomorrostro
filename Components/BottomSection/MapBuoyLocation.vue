@@ -8,7 +8,7 @@
 const SHIP_CATEGORIES = [
   { label: "Cargo", color: '#3f9a5a', matches: type => type >= 70 && type <= 79 },
   { label: "Tanker", color: '#d6454f', matches: type => type >= 80 && type <= 89 },
-  { label: "Passenger", color: '#2f7fb5', matches: type => type >= 60 && type <= 69 },
+  { label: "Passenger", color: 'var(--lightBlue)', matches: type => type >= 60 && type <= 69 },
   { label: "High speed craft", color: '#e0a21b', matches: type => type >= 40 && type <= 49 },
   { label: "Fishing", color: '#ef7d3c', matches: type => type == 30 },
   { label: "Recreational", color: '#a05cc4', matches: type => type == 36 || type == 37 },
@@ -87,7 +87,7 @@ export default {
     const lightMap = softMap().addTo(map);
     // EMODnet's mean depth, with a blue ramp in the app's colours (shallow light, deep dark blue; land transparent)
     const emodnetAttribution = '&copy; <a href="https://emodnet.ec.europa.eu/en/bathymetry" target="_blank">EMODnet Bathymetry</a>';
-    const depthStops = [[-2500, '#0f3062'], [-1000, '#1d5a8f'], [-300, '#2f7fb5'], [-100, '#5aa6d2'], [-40, '#8cc6e6'], [-15, '#bfe0f1'], [-1, '#e1f1f8']];
+    const depthStops = [[-2500, 'var(--darkBlue)'], [-1000, '#1d5a8f'], [-300, 'var(--lightBlue)'], [-100, '#5aa6d2'], [-40, '#8cc6e6'], [-15, '#bfe0f1'], [-1, '#e1f1f8']];
     const depthStyle = `<StyledLayerDescriptor version="1.0.0" xmlns="http://www.opengis.net/sld"><NamedLayer><Name>emodnet:mean</Name>
       <UserStyle><FeatureTypeStyle><Rule><RasterSymbolizer><ColorMap type="ramp">
       ${depthStops.map(([depth, color]) => `<ColorMapEntry color="${color}" quantity="${depth}"/>`).join('')}
@@ -151,7 +151,7 @@ export default {
       className: 'map-buoy',
       html: `<div class="map-buoy-pulse"></div>
         <div class="map-wind" style="display: none"><div class="map-wind-arrow"></div></div>
-        <svg class="map-buoy-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#f5c400" stroke="#0f3062" stroke-width="2"/><circle cx="12" cy="12" r="3.5" fill="#0f3062"/></svg>`,
+        <svg class="map-buoy-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#f5c400" stroke="var(--darkBlue)" stroke-width="2"/><circle cx="12" cy="12" r="3.5" fill="var(--darkBlue)"/></svg>`,
       iconSize: [80, 80],
       iconAnchor: [40, 40],
       popupAnchor: [0, -14],
@@ -167,7 +167,7 @@ export default {
     // View cone: where the 3D camera is looking. Follows the camera, and clicking on the map turns
     // the camera towards that point
     this.viewCone = L.polygon([], {
-      interactive: false, color: '#0f3062', weight: 1, opacity: 0.5, dashArray: '4 4', fillOpacity: 0.15,
+      interactive: false, color: 'var(--darkBlue)', weight: 1, opacity: 0.5, dashArray: '4 4', fillOpacity: 0.15,
     }).addTo(map);
     this.updateViewCone();
     window.eventBus.on('Canvas3D_cameraChange', this.updateViewCone);
@@ -277,7 +277,7 @@ export default {
         const options = name === 'wind'
           ? { colors: scales.wind, speedFactor: 0.18, className: 'map-field-wind' }
           // Currents are ~50 times slower than the wind: faster particles, and in blue so they don't mix with the wind's
-          : { colors: scales.currents, speedFactor: 6, density: 450, className: 'map-field-currents', seaOnly: true, particleColor: 'rgba(15, 48, 98, 0.75)' };
+          : { colors: scales.currents, speedFactor: 6, density: 450, className: 'map-field-currents', seaOnly: true, particleColor: 'rgba(var(--darkBlueRGB), 0.75)' };
         const layer = new window.ParticlesLayer(field, options);
         layer.field = field;
         return layer;
@@ -463,11 +463,11 @@ export default {
     drawMeasure() {
       const points = this.measurePoints;
       this.measureLayer.clearLayers();
-      L.polyline(points, { interactive: false, color: '#0f3062', weight: 2, dashArray: '6 6' }).addTo(this.measureLayer);
+      L.polyline(points, { interactive: false, color: 'var(--darkBlue)', weight: 2, dashArray: '6 6' }).addTo(this.measureLayer);
       let total = 0;
       points.forEach((point, index) => {
         if (index > 0) total += this.map.distance(points[index - 1], point);
-        const dot = L.circleMarker(point, { radius: 5, color: 'white', weight: 2, fillColor: '#0f3062', fillOpacity: 1, bubblingMouseEvents: false })
+        const dot = L.circleMarker(point, { radius: 5, color: 'white', weight: 2, fillColor: 'var(--darkBlue)', fillOpacity: 1, bubblingMouseEvents: false })
           .addTo(this.measureLayer);
         dot.on('click', () => {
           points.splice(index, 1);
@@ -538,7 +538,7 @@ export default {
       const marker = L.marker(buoy.latlng, {
         icon: L.divIcon({
           className: 'map-network-buoy', iconSize: [16, 16],
-          html: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#f5c400" stroke="#0f3062" stroke-width="3"/></svg>`,
+          html: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#f5c400" stroke="var(--darkBlue)" stroke-width="3"/></svg>`,
         }),
       });
       buoy.distance = this.formatDistance(this.map.distance(buoyLatLng, buoy.latlng));
@@ -598,7 +598,7 @@ export default {
       if (!window.AISManager) return;
       if (this.aisCoverage) this.aisCoverage.remove();
       this.aisCoverage = L.layerGroup(window.AISManager.bboxes.map(bbox => L.rectangle(bbox, {
-        interactive: false, color: '#0f3062', weight: 1, opacity: 0.35, dashArray: '2 6', fill: false,
+        interactive: false, color: 'var(--darkBlue)', weight: 1, opacity: 0.35, dashArray: '2 6', fill: false,
       }))).addTo(this.map);
     },
     // Boats without AIS whose position comes from a phone (see boia_server.py)
@@ -607,7 +607,7 @@ export default {
     },
     shipCategory(ship) {
       if (this.isPati(ship)) return { label: "Sailing dinghy", color: '#e5397a' };
-      if (String(ship.MMSI).startsWith('99')) return { label: "Aid to navigation", color: '#0f3062' };
+      if (String(ship.MMSI).startsWith('99')) return { label: "Aid to navigation", color: 'var(--darkBlue)' };
       return SHIP_CATEGORIES.find(category => category.matches(Number(ship.shipTypeId)));
     },
     // Heading in degrees, or undefined: 511 means not available, then the one inferred from the track
@@ -941,7 +941,7 @@ export default {
 
 /* CONTROLS like the rest of the app */
 .leaflet-container {
-  font-family: "Poppins", "Sans-serif";
+  font-family: inherit;
 }
 .leaflet-bar a, .leaflet-control-layers-toggle {
   background-color: var(--darkBlue);
