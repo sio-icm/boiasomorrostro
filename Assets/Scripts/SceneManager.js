@@ -267,7 +267,7 @@ class SceneManager{
       <div style="font-size: 0.8rem; opacity: 0.8">Boia Somorrostro · ICATMAR</div>`;
     sponsorsImg.style.color = 'white';
     sponsorsImg.style['text-align'] = 'center';
-    sponsorsImg.style['font-family'] = '"Poppins", sans-serif';
+    sponsorsImg.style['font-family'] = '"TT Commons", sans-serif';
     sponsorsImg.style.bottom = '30px';
     sponsorsImg.style.position = 'absolute';
 

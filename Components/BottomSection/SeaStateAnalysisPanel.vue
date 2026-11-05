@@ -208,7 +208,7 @@ input {
   margin-top: 10px;
   margin-bottom: 10px;
   border-radius: 25px;
-  border-color: #0f3062;
+  border-color: var(--darkBlue);
   border-width: thin;
   border-style: solid;
 }

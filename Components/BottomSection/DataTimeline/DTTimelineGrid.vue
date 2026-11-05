@@ -102,7 +102,7 @@ export default {
 td.group-cell {
   text-align: left;
   padding: 0;
-  background: var(--lightBlue);
+  background: rgb(226, 225, 243); /* The ICM's pale ultramarine */
 }
 /* td.group-cell prefix (not just .group-cell-label) to outweigh the
    ".dt-table td > *" reset's own padding:0 - same specificity trick as above */
@@ -115,8 +115,9 @@ td.group-cell > .group-cell-label {
 }
 .group-cell-label > span,
 .group-cell-label > a {
-  font-size: 0.65rem;
-  color: white;
+  font-size: 0.7rem;
+  color: var(--blue);
+  text-shadow: none;
 }
 .group-cell-label > a {
   text-decoration: underline;
@@ -129,7 +130,7 @@ td.group-cell > .group-cell-label {
 td.sensor-cell {
   text-align: left;
   padding: 0;
-  background: var(--lightBlue);
+  background: rgb(241, 240, 249); /* Paler than the product row above */
 }
 td.sensor-cell > .sensor-cell-label {
   position: sticky;
@@ -137,12 +138,12 @@ td.sensor-cell > .sensor-cell-label {
   display: inline-block;
   padding-left: 20px;
   white-space: nowrap;
-  color: white;
-  text-shadow: 0 0 2px black;
+  color: var(--darkBlue);
+  text-shadow: none;
 }
 .sensor-cell-label {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-style: italic;
-  color: white;
+  color: var(--darkBlue);
 }
 </style>

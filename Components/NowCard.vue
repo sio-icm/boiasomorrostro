@@ -133,8 +133,8 @@ export default {
   z-index: 10;
   min-width: 170px;
   padding: 8px 12px;
-  border-radius: 12px;
-  background: rgba(15, 48, 98, 0.55);
+  border-radius: 6px;
+  background: rgba(var(--darkBlueRGB), 0.7);
   backdrop-filter: blur(6px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   font-size: 0.78rem;
