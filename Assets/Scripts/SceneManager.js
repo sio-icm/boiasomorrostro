@@ -502,6 +502,11 @@ class SceneManager{
     // Follow mode (see follow)
     if (this.followed) this.updateFollow();
 
+    // Whether the camera is on the buoy: looking at it from not too far, not following a vessel
+    const target = this.controls.target;
+    const buoyInFocus = !this.followed && Math.hypot(target.x, target.z) < 30 && this.camera.position.distanceTo(target) < 200;
+    if (window.GUIManager && window.GUIManager.buoyInFocus !== buoyInFocus) window.GUIManager.buoyInFocus = buoyInFocus;
+
     // Flag updates
     if (this.flag && this.camera.position.y > 0) {
       if (this.flag.isLoaded && this.flag.root.visible) {

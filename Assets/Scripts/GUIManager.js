@@ -31,6 +31,10 @@ class GUIManager {
     else window.location.removeHash('TIMESCALE');
   }
 
+  // Whether the camera is on the buoy (not following a vessel); set by SceneManager, shows its
+  // institutions' logos (see NowCard)
+  buoyInFocus = true;
+
   // Whether the bottom section is fullscreen, compact (normal height) or hidden
   _panelState = 'compact';
   get panelState() { return this._panelState; }
