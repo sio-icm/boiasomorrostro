@@ -287,6 +287,23 @@ export default en = {
   "More data": "+ Data",
   "Regenerate ocean": "↻ Regenerate simulation",
 
+  aboutPanel: {
+    intro: "Digital twin of the Somorrostro buoy, moored off Somorrostro beach in Barcelona. The 3D sea shows the waves, wind and light of the moment you pick, from what the buoy measures or, when there is no data, from the forecast.",
+    featuresTitle: "What you can do",
+    f1: "Move the timeline to see the sea from three days ago to two days ahead.",
+    f2: "Check the buoy's measurements, its history and the forecast.",
+    f3: "See ships with AIS and other buoys of the network on the map, and measure distances.",
+    f4: "Tap a ship or the buoy, on the map or in 3D, to go to it.",
+    sourcesTitle: "Where the data comes from",
+    buoy: "Buoy",
+    forecast: "Forecast",
+    ships: "Ships",
+    map: "Map",
+    contact: "Questions, comments or bugs: write to us on",
+    buoyData: "About the buoy data:",
+    noticeTitle: "Notice",
+    notice: "The data is for information only and may contain errors or gaps. Do not use it for critical decisions without checking it.",
+  },
   timeControl: {
     "timeSliderTip": "Drag to select the date",
     "dailyMax": "Daily maximum (OBSEA)",

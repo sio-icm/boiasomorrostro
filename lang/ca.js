@@ -280,6 +280,23 @@ export default ca = {
   "More data": "+ Dades",
   "Regenerate ocean": "↻ Regenerar simulació",
 
+  aboutPanel: {
+    intro: "Bessó digital de la boia Somorrostro, fondejada davant la platja del Somorrostro, a Barcelona. El mar en 3D reprodueix l'onatge, el vent i la llum del moment que triïs, amb el que mesura la boia o, quan no hi ha dades, amb la predicció.",
+    featuresTitle: "Què pots fer",
+    f1: "Moure la línia de temps per veure el mar des de fa tres dies fins d'aquí a dos.",
+    f2: "Consultar les mesures de la boia, el seu històric i la predicció.",
+    f3: "Veure al mapa els vaixells amb AIS i altres boies de la xarxa, i mesurar distàncies.",
+    f4: "Tocar un vaixell o la boia, al mapa o al 3D, per anar-hi.",
+    sourcesTitle: "D'on surten les dades",
+    buoy: "Boia",
+    forecast: "Predicció",
+    ships: "Vaixells",
+    map: "Mapa",
+    contact: "Dubtes, comentaris o errors: escriu-nos a",
+    buoyData: "Sobre les dades de la boia:",
+    noticeTitle: "Avís",
+    notice: "Les dades són només informatives i poden contenir errors o interrupcions. No les facis servir per a decisions crítiques sense comprovar-les.",
+  },
   timeControl: {
     "timeSliderTip": "Arrossega per seleccionar la data",
     "dailyMax": "Màxim diari (OBSEA)",

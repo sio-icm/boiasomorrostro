@@ -1,27 +1,29 @@
 <template>
-  
   <div id="about-panel" class="content" :class="{ fullscreen: $gui.panelState === 'fullscreen' }">
 
-    <p>{{$t('intro')}}</p>
+    <p class="intro">{{ $t('aboutPanel.intro') }}</p>
 
-    <!-- Disclaimer -->
-    <p> {{ $t('disclaimer') }}</p>
+    <h5>{{ $t('aboutPanel.featuresTitle') }}</h5>
+    <ul>
+      <li v-for="key in ['f1', 'f2', 'f3', 'f4']" :key="key">{{ $t('aboutPanel.' + key) }}</li>
+    </ul>
 
-    <!-- Concept -->
-    <p> {{ $t('concept') }}</p>
+    <h5>{{ $t('aboutPanel.sourcesTitle') }}</h5>
+    <dl class="sources">
+      <dt>{{ $t('aboutPanel.buoy') }}</dt>
+      <dd><a href="https://icatmar.cat" target="_blank">ICATMAR</a> (ICM-CSIC)</dd>
+      <dt>{{ $t('aboutPanel.forecast') }}</dt>
+      <dd><a href="https://open-meteo.com" target="_blank">Open-Meteo</a> (Météo-France) · <a href="https://marine.copernicus.eu" target="_blank">Copernicus Marine</a></dd>
+      <dt>{{ $t('aboutPanel.ships') }}</dt>
+      <dd>AIS · <a href="https://aisstream.io" target="_blank">aisstream.io</a></dd>
+      <dt>{{ $t('aboutPanel.map') }}</dt>
+      <dd><a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> · <a href="https://www.openseamap.org" target="_blank">OpenSeaMap</a> · <a href="https://emodnet.ec.europa.eu/en/bathymetry" target="_blank">EMODnet</a></dd>
+    </dl>
 
-    <!-- <p>You can check out some of the 3D digital twins 
-      developed related to this web application:</p>
-    <div class="container-vertical">
-      <button onclick="window.open('https://cgi-dto.github.io/OBSEA/', '_blank')">Digital Twin of a cabled underwater observatory (OBSEA) <span class="fa">&#xf08e;</span></button>
-      <button onclick="window.open('https://cgi-dto.github.io/Barcelona/', '_blank')">Digital Twin of Barcelona's sea state <span class="fa">&#xf08e;</span></button>
-    </div> -->
-    
-    <!-- Contact -->
     <h5>{{ $t('Contact') }}</h5>
     <p>
-      {{ $t('contact-sio') }} <a href="https://github.com/sio-icm/boiasomorrostro/issues" target="_blank">GitHub</a>.
-      {{ $t('contact-buoy-data') }} {{ emailObs }}@{{ emailProviderIcatmar }}.
+      {{ $t('aboutPanel.contact') }} <a href="https://github.com/sio-icm/boiasomorrostro/issues" target="_blank">GitHub</a>.
+      {{ $t('aboutPanel.buoyData') }} {{ emailObs }}@{{ emailProviderIcatmar }}.
     </p>
     <div class="logos-container">
       <img class="sio-logo" :src="'img/logos/SIO-' + logoLang + '.png'" alt="SIO">
@@ -37,7 +39,7 @@
       <a href="https://github.com/ICATMAR/boiasomorrostro" target="_blank">{{ $t('original-repository') }}</a>.
       {{ $t('author-info-gerard') }} {{ email }}@{{ emailProvider }}.
     </p>
-    <p>{{$t('howtocite')}}</p>
+    <p>{{ $t('howtocite') }}</p>
 
     <p class="citation">Llorach Tó, G., Martí Comas, A., Pitarch Claramunt, X., Ribera Altimir, J., Molina, D., Casals Baixas, C., ... & Ballabrera Poy, J. (2025). Data flow, infrastructure, harmonization and 3d visualization: the use case of somorrostro’s moored buoy’s deployment. Instrumentation viewpoint, (24), 32-33.</p>
 
@@ -46,23 +48,16 @@
     <p class="citation">Llorach-Tó, G., Martínez, E., Del-Río, J., Simarro, G., Pani, M., Bucchi, A., ... & García-Ladona, E. (2024). 3D Digital Twins of the Ocean: towards an intuitive and realistic visualization of wave parameters (No. EGU24-19105). Copernicus Meetings.</p>
 
     <!-- The original project's institutions and funders -->
-    <div class="attributions-container">
-      <div class="logos-container">
-        <img src="img/logos/ICATMAR512.png" alt="ICATMAR">
-        <img src="img/logos/AjuntamentBarcelona.png" alt="Ajuntament de Barcelona">
-        <img src="img/logos/Generalitat.png" alt="Generalitat de Catalunya">
-      </div>
+    <div class="logos-container">
+      <img src="img/logos/ICATMAR512.png" alt="ICATMAR">
+      <img src="img/logos/AjuntamentBarcelona.png" alt="Ajuntament de Barcelona">
+      <img src="img/logos/Generalitat.png" alt="Generalitat de Catalunya">
     </div>
-    
+
+    <p class="notice"><b>{{ $t('aboutPanel.noticeTitle') }}.</b> {{ $t('aboutPanel.notice') }}</p>
 
   </div>
-  
-
 </template>
-
-
-
-
 
 
 <script>
@@ -121,17 +116,39 @@ export default {
 }
 
 p {
-  text-align: justify;
+  padding: 0;
+  line-height: 1.5;
 }
-
-.container-vertical {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 1rem;
+.intro {
+  font-size: 0.95rem;
 }
-.container-vertical > button {
-  margin: 5px;
+h5 {
+  margin: 1.2rem 0 0.4rem;
+}
+ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  line-height: 1.6;
+}
+.sources {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+.sources dt {
+  font-weight: 600;
+}
+.sources dd {
+  margin: 0;
+}
+.logos-container {
+  margin: 0.8rem 0;
+}
+.notice {
+  margin-top: 1.2rem;
+  font-size: 0.72rem;
+  opacity: 0.75;
 }
 
 .citation {
@@ -140,12 +157,6 @@ p {
 
 
 
-.attributions-container {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
 .logos-container {
   display: flex;
   flex-direction: row;

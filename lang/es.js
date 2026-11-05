@@ -292,6 +292,23 @@ export default es = {
   "More data": "+ Datos",
   "Regenerate ocean": "↻ Regenerar simulación",
 
+  aboutPanel: {
+    intro: "Gemelo digital de la boya Somorrostro, fondeada frente a la playa del Somorrostro, en Barcelona. El mar en 3D reproduce el oleaje, el viento y la luz del momento que elijas, con lo que mide la boya o, cuando no hay datos, con la predicción.",
+    featuresTitle: "Qué puedes hacer",
+    f1: "Mover la línea de tiempo para ver el mar desde hace tres días hasta dentro de dos.",
+    f2: "Consultar las mediciones de la boya, su histórico y la predicción.",
+    f3: "Ver en el mapa los barcos con AIS y otras boyas de la red, y medir distancias.",
+    f4: "Tocar un barco o la boya, en el mapa o en el 3D, para ir hasta él.",
+    sourcesTitle: "De dónde salen los datos",
+    buoy: "Boya",
+    forecast: "Predicción",
+    ships: "Barcos",
+    map: "Mapa",
+    contact: "Dudas, comentarios o errores: escríbenos en",
+    buoyData: "Sobre los datos de la boya:",
+    noticeTitle: "Aviso",
+    notice: "Los datos son solo informativos y pueden contener errores o interrupciones. No los utilices para decisiones críticas sin comprobarlos.",
+  },
   timeControl: {
     "timeSliderTip": "Arrastra para seleccionar la fecha",
     "dailyMax": "Máximo diario (OBSEA)",
