@@ -114,16 +114,16 @@ export class OceanGrid {
       let dotResult = this.rayCameraUserToRowCentralVertex.dot(this.rayCameraUserToIntersectPoint);
       // Intersect point is behind the camera
       if (dotResult < 0) {
-        // Find intersection between frustrum and XZ plane
-        this.intersectionPoint.copy(this.rayCameraUserToRowCentralVertex).normalize().multiplyScalar(this.cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
-        this.intersectionPoint.y = 0;
+        // Find intersection between frustrum and XZ plane: on the horizon, ahead of the camera
+        this.intersectionPoint.copy(this.cameraUser.position).add(this.rayCameraUserToRowCentralVertex);
+        this.toHorizon(this.intersectionPoint);
         // Calculate cameraGrid position and orientation
         this.calculateCameraGridMatrix(this.intersectionPoint, this.rowCentralVertex);
       }
       // Intersect point is further away than camera frustrum, i.e., it is approximating the horizon
-      else if (this.intersectionPoint.length() > this.cameraUser.far) {
+      else if (this.horizontalDistance(this.intersectionPoint) > this.cameraUser.far) {
         // Limit the intersection point to camera.far
-        this.intersectionPoint.normalize().multiplyScalar(this.cameraUser.far);
+        this.toHorizon(this.intersectionPoint);
         this.calculateCameraGridMatrix(this.intersectionPoint, this.rowCentralVertex);
       }
       // Intersect point is in front of camera and inside frustrum
@@ -135,10 +135,9 @@ export class OceanGrid {
 
     // Rare case when the ray is looking at the horizon
     else {
-      debugger;
-      // Find intersection between frustrum and XZ plane
-      this.intersectionPoint.copy(this.rayCameraUserToRowCentralVertex).normalize().multiplyScalar(this.cameraUser.far); // Extend ray to end of frustrum (cameraUser.far)
-      this.intersectionPoint.y = 0;
+      // Find intersection between frustrum and XZ plane: on the horizon, ahead of the camera
+      this.intersectionPoint.copy(this.cameraUser.position).add(this.rayCameraUserToRowCentralVertex);
+      this.toHorizon(this.intersectionPoint);
       // HACK - COUNTER HACK
       //this.intersectionPoint.multiplyScalar(-1);
       // Calculate cameraGrid position and orientation
@@ -198,7 +197,7 @@ export class OceanGrid {
       this.secondIntersectionPoint.copy(this.cameraUser.position).add(ray.multiplyScalar(t));
 
       // Intersect point is further away than camera frustrum, i.e., it is approximating the horizon
-      if (this.secondIntersectionPoint.length() > this.cameraUser.far) {
+      if (this.horizontalDistance(this.secondIntersectionPoint) > this.cameraUser.far) {
         console.log("Do not paint (cameraUser looking towards horizon but too far).");
         return;
       } 
@@ -217,7 +216,7 @@ export class OceanGrid {
         // CONTINUE SCRIPT
         // CALCULATE CAMERA LOOKAT AND oceanGrid HEIGHT (RANGE)
         // Extend intersect point to horizon
-        intersectionPoint.normalize().multiplyScalar(this.cameraUser.far);
+        this.toHorizon(intersectionPoint);
         
         // Calculate top and bottom central vertices of ocean grid
         this.gridTopCentralVertex.subVectors(intersectionPoint, this.cameraGrid.position).normalize().multiplyScalar(this.distanceFrontCamera).add(this.cameraGrid.position);
@@ -243,6 +242,24 @@ export class OceanGrid {
 
   }
 
+
+
+  // Distances and the horizon are measured from the camera, not from the scene's origin (the
+  // buoy): with the camera far from it (following a vessel) the grid would point elsewhere
+  horizontalDistance = function(point){
+    return Math.hypot(point.x - this.cameraUser.position.x, point.z - this.cameraUser.position.z);
+  }
+  // Moves a point to the sea level, cameraUser.far away from the camera in the same direction
+  toHorizon = function(point){
+    const camera = this.cameraUser.position;
+    const distance = this.horizontalDistance(point) || 1;
+    point.set(
+      camera.x + (point.x - camera.x) / distance * this.cameraUser.far,
+      0,
+      camera.z + (point.z - camera.z) / distance * this.cameraUser.far,
+    );
+    return point;
+  }
 
 
   // Make as if it was a child of camera
