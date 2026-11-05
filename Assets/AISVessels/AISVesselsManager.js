@@ -50,7 +50,10 @@ class AISVesselsManager {
     const type = Number(shipInfo.shipTypeId);
     if (type >= 70 && type <= 79) return CargoVesselEntity;
     if (type >= 80 && type <= 89) return TankerVesselEntity;
-    if (type >= 60 && type <= 69 && shipInfo.length > 100) return CruiseBigEntity; // Ferries and cruise ships
+    // Ferries, fast ferries (high-speed craft, 40-49) and cruise ships
+    if (((type >= 60 && type <= 69) || (type >= 40 && type <= 49)) && shipInfo.length > 60) return CruiseBigEntity;
+    // Any other big ship (unknown or other type): the small boat would be stretched too far
+    if (shipInfo.length > 60) return CargoVesselEntity;
     return VesselEntity; // Small boats: fishing, pleasure, tugs, pilots...
   }
 
