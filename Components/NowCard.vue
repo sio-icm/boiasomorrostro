@@ -15,6 +15,13 @@
       </b>
     </div>
     <div class="now-warning" v-if="!measured && lastDate">{{ $t('Buoy without data since') }} {{ lastDate }}</div>
+    <!-- While the camera is on the buoy: whose buoy it is -->
+    <transition name="now-credits">
+      <div class="now-credits" v-if="$gui.buoyInFocus" @click.stop>
+        <a href="https://icatmar.cat" target="_blank" title="ICATMAR"><img class="icatmar" src="img/logos/ICATMAR512_white.png" alt="ICATMAR"></a>
+        <a href="https://www.icm.csic.es" target="_blank" title="ICM-CSIC"><img src="img/logos/ICM_white.png" alt="ICM-CSIC"></a>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -164,11 +171,49 @@ export default {
   font-size: 0.66rem;
   color: #ffd27a !important;
 }
+.now-credits {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  max-height: 50px;
+  overflow: hidden;
+}
+.now-credits img {
+  display: block;
+  height: 20px;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+.now-credits img.icatmar {
+  height: 36px; /* Nearly square, with three lines of small text */
+}
+.now-credits a:hover img {
+  opacity: 1;
+}
+.now-credits-enter-active, .now-credits-leave-active {
+  transition: opacity 0.4s, max-height 0.4s, margin-top 0.4s, padding-top 0.4s;
+}
+.now-credits-enter-from, .now-credits-leave-to {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
 @media screen and (max-width: 770px) {
   .now-card {
     min-width: 140px;
     padding: 6px 10px;
     font-size: 0.7rem;
+  }
+  .now-credits img {
+    height: 16px;
+  }
+  .now-credits img.icatmar {
+    height: 30px;
   }
 }
 </style>
