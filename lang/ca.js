@@ -16,23 +16,15 @@ export default ca = {
 
 
   "About": "Sobre",
-  "intro": "Aquesta aplicació, del Servei d'Enginyeria Oceanogràfica (SIO) de l'ICM-CSIC, ofereix una visualització dinàmica en 3D de la boia Somorrostro, reflectint les seves condicions reals i proporcionant accés a dades meteorològiques i oceanogràfiques en temps real.",
-  "disclaimer": "Les dades presentades en aquesta aplicació són únicament per a fins informatius. Tot i que ens esforcem per garantir-ne la precisió i fiabilitat, no podem assegurar que les dades estiguin lliures d'errors o interrupcions. La informació no s'ha d'utilitzar per a la presa de decisions crítiques sense una verificació addicional. L'ús d'aquesta aplicació és sota la seva pròpia responsabilitat.",
-  "concept": "El concepte d’aquesta aplicació web s’origina en els bessons digitals: l’estat del mar mostrat aquí hauria de ser una rèplica del mar real. A més, l’usuari hauria de poder modificar el bessó digital i crear 'escenaris hipotètics'.",
   "howtocite": "Per citar el projecte original, utilitzeu les referències següents:",
   "original-repository": "repositori de l'ICATMAR",
   "original-3": "(ICM-CSIC), que també proporciona les dades de la boia. El seu codi és al",
   "original-2": ", el bessó digital de la boia creat per Gerard Llorach a",
   "original-1": "Aquest web és una versió de",
   "Original project": "Projecte original",
-  "contact-buoy-data": "Per a consultes sobre les dades de la boia, contacta amb l'ICATMAR:",
-  "contact-sio": "Per a dubtes, comentaris o errors d'aquesta versió, escriu-nos a",
 
   "Contact": "Contacte",
   "author-info-gerard": "Autor del projecte original:",
-  "contact-github-issues": "Si esteu familiaritzats amb github issues, podeu informar d'errors a través de ",
-  "author-info-jordi": "Respecte les dades, el seu tractament i obtenció, contacteu amb ",
-  "contact-icatmar": "Per qualsevol altra cosa, podeu contactar a través de ",
 
 
   "Map": "Mapa",
@@ -281,12 +273,6 @@ export default ca = {
   "Regenerate ocean": "↻ Regenerar simulació",
 
   aboutPanel: {
-    intro: "Bessó digital de la boia Somorrostro, fondejada davant la platja del Somorrostro, a Barcelona. El mar en 3D reprodueix l'onatge, el vent i la llum del moment que triïs, amb el que mesura la boia o, quan no hi ha dades, amb la predicció.",
-    featuresTitle: "Què pots fer",
-    f1: "Moure la línia de temps per veure el mar des de fa tres dies fins d'aquí a dos.",
-    f2: "Consultar les mesures de la boia, el seu històric i la predicció.",
-    f3: "Veure al mapa els vaixells amb AIS i altres boies de la xarxa, i mesurar distàncies.",
-    f4: "Tocar un vaixell o la boia, al mapa o al 3D, per anar-hi.",
     sourcesTitle: "D'on surten les dades",
     buoy: "Boia",
     forecast: "Predicció",

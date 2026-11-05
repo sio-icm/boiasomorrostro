@@ -1,13 +1,6 @@
 <template>
   <div id="about-panel" class="content" :class="{ fullscreen: $gui.panelState === 'fullscreen' }">
 
-    <p class="intro">{{ $t('aboutPanel.intro') }}</p>
-
-    <h5>{{ $t('aboutPanel.featuresTitle') }}</h5>
-    <ul>
-      <li v-for="key in ['f1', 'f2', 'f3', 'f4']" :key="key">{{ $t('aboutPanel.' + key) }}</li>
-    </ul>
-
     <h5>{{ $t('aboutPanel.sourcesTitle') }}</h5>
     <dl class="sources">
       <dt>{{ $t('aboutPanel.buoy') }}</dt>
@@ -119,16 +112,11 @@ p {
   padding: 0;
   line-height: 1.5;
 }
-.intro {
-  font-size: 0.95rem;
-}
 h5 {
   margin: 1.2rem 0 0.4rem;
 }
-ul {
-  margin: 0;
-  padding-left: 1.2rem;
-  line-height: 1.6;
+h5:first-child {
+  margin-top: 0;
 }
 .sources {
   display: grid;
