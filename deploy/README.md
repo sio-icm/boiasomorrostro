@@ -1,5 +1,36 @@
 # Poner el servidor del SIO en marcha
 
+## Dónde está publicada ahora
+
+En **https://iot.icm.csic.es/boiasomorrostro/**, una máquina virtual del ICM (solo accesible por
+SSH con la VPN del CMIMA). Allí todo va con nginx, sin túnel:
+
+| Qué | Dónde |
+|---|---|
+| La web | `/var/www/boiasomorrostro` (la raíz `/` redirige a `/boiasomorrostro/`) |
+| `boia_server.py` | `/opt/boiasomorrostro`, con su `.env` y un `venv` (`websockets` ≥ 10), servicio `boiasomorrostro` |
+| nginx | `/etc/nginx/conf.d/boiasomorrostro.conf`, copia en [`nginx-boiasomorrostro.conf`](nginx-boiasomorrostro.conf) |
+| HTTPS | certificado de Let's Encrypt (`certbot`, nombre `iot.cmima.csic.es`) |
+
+Rutas: `/ais` (WebSocket, al puerto 8766), `/proxy/` y `/pati` (al 8767). En Traccar Client, la
+dirección del servidor es `https://iot.icm.csic.es/pati`.
+
+Para subir una versión nueva de la web, desde el repositorio:
+
+```bash
+git ls-files | grep -v -E '^(deploy/|tools/|\.github/|.*\.py$|\.gitignore)' > /tmp/web.txt && rsync -az --delete --files-from=/tmp/web.txt ./ bardaji@iot.icm.csic.es:/var/www/boiasomorrostro/
+```
+
+Y si cambia `boia_server.py`:
+
+```bash
+scp boia_server.py bardaji@iot.icm.csic.es:/opt/boiasomorrostro/ && ssh bardaji@iot.icm.csic.es sudo systemctl restart boiasomorrostro
+```
+
+Ojo: el `websockets` de Ubuntu 22.04 (9.1) es demasiado antiguo; por eso el `venv`.
+
+## En otro servidor
+
 La web es estática (GitHub Pages, por ejemplo), pero necesita un pequeño servidor para lo que el
 navegador no puede pedir directamente a los servicios de ICATMAR, que solo aceptan su propia web:
 

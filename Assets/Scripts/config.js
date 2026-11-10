@@ -5,7 +5,7 @@
 //    which only work on ICATMAR's website.
 
 // The SIO's server, e.g. 'https://boia.example.org' (no trailing slash). Empty until deployed
-const SIO_SERVER = '';
+const SIO_SERVER = 'https://iot.icm.csic.es';
 
 const LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
 
