@@ -21,7 +21,7 @@ It also takes positions of boats without AIS (a patí de vela, say) on an HTTP p
 format of the Traccar Client phone app (OsmAnd protocol: ?id=&lat=&lon=&speed=&bearing=, or its
 JSON body), and relays them as AIS messages of a sailing boat with MMSI "PATI-<id>". Only the
 device ids listed in PATI_DEVICES (.env, "id:Name,id2:Name2") are accepted, plus "simulador"
-(see tools/simulate_pati.py).
+(see tools/simulate_pati.py) if PATI_SIMULATOR=1.
 
 Usage: python3 boia_server.py [port] [http port]   (default 8766 for the AIS WebSocket and 8767
 for the proxy and the patí positions; see Assets/Scripts/config.js)
@@ -84,7 +84,11 @@ def read_origins():
 
 
 def read_pati_devices():
-    devices = {'simulador': 'Patí (simulat)'}
+    """Phones allowed to send positions: PATI_DEVICES, plus the simulator if PATI_SIMULATOR=1
+    (only for testing: anyone could otherwise send a fake patí to a public server)"""
+    devices = {}
+    if (read_env('PATI_SIMULATOR') or '').lower() in ('1', 'true', 'yes'):
+        devices['simulador'] = 'Patí (simulat)'
     for entry in (read_env('PATI_DEVICES') or '').split(','):
         device_id, _, name = entry.strip().partition(':')
         if device_id:
@@ -250,11 +254,13 @@ async def main(port, http_port):
     api_key = read_api_key()
     devices = read_pati_devices()
     origins = read_origins()
-    # The HTTP port listens on every interface, so a phone on the same network can reach it
-    http_server = await asyncio.start_server(lambda r, w: http_handler(r, w, devices, origins), '0.0.0.0', http_port)
+    # The HTTP port listens on BOIA_HTTP_HOST: by default every interface, so a phone on the same
+    # network can reach it; 127.0.0.1 on a server, behind nginx
+    http_host = read_env('BOIA_HTTP_HOST') or '0.0.0.0'
+    http_server = await asyncio.start_server(lambda r, w: http_handler(r, w, devices, origins), http_host, http_port)
     # The AIS feed only for the allowed websites (browsers always send their origin)
     async with websockets.serve(client_handler, 'localhost', port, origins=sorted(origins)), http_server:
-        print(f'AIS on ws://localhost:{port}; proxy and patí positions on http://<this computer>:{http_port}/')
+        print(f'AIS on ws://localhost:{port}; proxy and patí positions on http://{http_host}:{http_port}/')
         print('Allowed origins:', ', '.join(sorted(origins)))
         await upstream(api_key)
 

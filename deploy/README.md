@@ -29,6 +29,9 @@ scp boia_server.py bardaji@iot.icm.csic.es:/opt/boiasomorrostro/ && ssh bardaji@
 
 Ojo: el `websockets` de Ubuntu 22.04 (9.1) es demasiado antiguo; por eso el `venv`.
 
+En su `.env`, además de la clave y `BOIA_ORIGINS`: `BOIA_HTTP_HOST=127.0.0.1` (el puerto 8767 solo
+se usa a través de nginx) y sin `PATI_SIMULATOR`, para que nadie pueda enviar un patí falso.
+
 ## En otro servidor
 
 La web es estática (GitHub Pages, por ejemplo), pero necesita un pequeño servidor para lo que el
@@ -64,6 +67,8 @@ sudo -u boia nano .env
 - `AISSTREAM_API_KEY`: la clave de aisstream.io.
 - `BOIA_ORIGINS`: la dirección de la web publicada, p. ej. `https://sio-icm.github.io`.
 - `PATI_DEVICES`: los móviles que envían posiciones, `identificador:Nombre`.
+- `BOIA_HTTP_HOST`: `127.0.0.1` si el servidor está detrás de nginx (si no, vacío).
+- `PATI_SIMULATOR`: `1` solo para probar con `tools/simulate_pati.py`; nunca en un servidor público.
 
 ## 3. Arrancarlo como servicio
 
@@ -109,7 +114,7 @@ y publicar la web.
 # Proxy: debe devolver la última temperatura del agua
 curl "https://boia.example.org/proxy/?url=https%3A%2F%2Ferddap.icatmar.cat%2Ferddap%2Ftabledap%2FBUOY_SOMO_CTD.csv%3Ftime%2CTEMP%26orderByMax(%22time%22)"
 # Patí simulado durante un rato
-python3 tools/simulate_pati.py https://boia.example.org/
+python3 tools/simulate_pati.py https://boia.example.org/   # con PATI_SIMULATOR=1
 ```
 
 En la app del móvil (Traccar Client), la dirección del servidor es `https://boia.example.org/`.
