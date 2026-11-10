@@ -496,6 +496,11 @@ class SceneManager{
 
 
     // Wind streaks, around where the camera looks
+    // The buoy's lantern flashing
+    if (this.somorrostroBuoy?.light) {
+      this.somorrostroBuoy.light.night = this.somorrostroBuoy.night || 0;
+      this.somorrostroBuoy.light.update(this.camera);
+    }
     this.windStreaks?.update(dt, this.controls.target, this.windDirection, this.windSpeed, this.skyDaylight, this.renderer, this.camera);
 
     // Vessels (the patí sails between reports and rides the waves)
@@ -642,6 +647,8 @@ class SceneManager{
     // City lights: on from a little after sunset (sun 1º below the horizon) to full at 8º below
     this.skyDaylight = sky.daylight; // For the wind streaks
     this.cityLights?.setNight(Math.min(1, Math.max(0, (-elevation - 1) / 7)));
+    // The buoy's lantern: on from sunset (its light sensor), fully bright by dusk
+    if (this.somorrostroBuoy) this.somorrostroBuoy.night = Math.min(1, Math.max(0, (-elevation + 1) / 5));
     // Sea
     this.ocean.setSky({ sunDirection, sunColor: sky.sun, daylight: sky.daylight, skyTint: sky.tint });
     this.updateOceanReflection();
