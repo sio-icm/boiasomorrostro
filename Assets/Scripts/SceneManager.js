@@ -496,6 +496,8 @@ class SceneManager{
 
 
     // Wind streaks, around where the camera looks
+    // The sky around the camera (see SkyboxEntity.follow)
+    this.skybox?.follow(this.camera.position);
     // The buoy's lantern flashing
     if (this.somorrostroBuoy?.light) {
       this.somorrostroBuoy.light.night = this.somorrostroBuoy.night || 0;
@@ -673,7 +675,9 @@ class SceneManager{
     const renderTarget = new THREE.WebGLCubeRenderTarget(512);
     const cubeCamera = new THREE.CubeCamera(1, 100000, renderTarget);
     cubeCamera.position.set(0, 1, 0);
+    this.skybox.follow(cubeCamera.position); // The sky around the capture, too
     cubeCamera.update(this.renderer, this.scene);
+    this.skybox.follow(this.camera.position);
 
     children.forEach((child, index) => child.visible = visibility[index]);
     this.ocean.setReflectionMap(renderTarget.texture);
