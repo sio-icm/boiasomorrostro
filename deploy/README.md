@@ -27,6 +27,10 @@ Y si cambia `boia_server.py`:
 scp boia_server.py bardaji@iot.icm.csic.es:/opt/boiasomorrostro/ && ssh bardaji@iot.icm.csic.es sudo systemctl restart boiasomorrostro
 ```
 
+nginx hace que el navegador compruebe el código (`.html`, `.js`, `.vue`, `.css`) en cada visita, así que
+una versión nueva se ve al recargar normal. Las imágenes y modelos 3D se guardan 7 días: si se cambia
+uno, conviene darle otro nombre.
+
 Ojo: el `websockets` de Ubuntu 22.04 (9.1) es demasiado antiguo; por eso el `venv`.
 
 En su `.env`, además de la clave y `BOIA_ORIGINS`: `BOIA_HTTP_HOST=127.0.0.1` (el puerto 8767 solo
