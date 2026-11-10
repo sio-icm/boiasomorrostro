@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '/boiasomorrostro/lib/three.js/examples/jsm/loaders/GLTFLoader.js';
+import { BuoyLight } from '/boiasomorrostro/Assets/SomorrostroBuoy/BuoyLight.js';
 
 class SomorrostroBuoyEntity {
 
@@ -42,6 +43,9 @@ class SomorrostroBuoyEntity {
 
 
       
+
+      // Its lantern, flashing at night
+      this.light = new BuoyLight(root);
 
       scene.add(root);
       this.isLoaded = true;
