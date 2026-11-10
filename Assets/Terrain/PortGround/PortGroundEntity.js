@@ -4,7 +4,8 @@ import * as THREE from 'three';
 // Google's photogrammetry of the port (CoastLine.glb) is blurry up close, and its cranes, container
 // stacks and ships come out as loose shards. So in the port it is hidden (see CoastLineEntity) and
 // replaced by this flat ground at quay height, textured with the ICGC orthophoto, its water made
-// transparent so the 3D sea and the ships show. Made by tools/orto_port.py.
+// transparent so the 3D sea and the ships show. Made by tools/orto_port.py, with half-size
+// copies (_small) for phones.
 // Orthophoto: Institut Cartogràfic i Geològic de Catalunya (ICGC), CC BY 4.0
 
 // The orthophoto's box (keep in sync with tools/orto_port.py)
@@ -48,13 +49,20 @@ function portAreaGLSL() {
   }`;
 }
 
+// A phone or a small tablet: a touch screen as the main pointer, and not a big screen
+function isPhone() {
+  return window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 900;
+}
+
 class PortGroundEntity {
   constructor(scene) {
+    // On phones, the half-size images: the full ones take some 80 MB of graphics memory
+    const suffix = isPhone() ? '_small' : '';
     const loader = new THREE.TextureLoader();
-    const map = loader.load('/boiasomorrostro/Assets/Terrain/PortGround/port.jpg');
+    const map = loader.load(`/boiasomorrostro/Assets/Terrain/PortGround/port${suffix}.jpg`);
     map.colorSpace = THREE.SRGBColorSpace;
     map.anisotropy = 8;
-    const alphaMap = loader.load('/boiasomorrostro/Assets/Terrain/PortGround/port_mask.png');
+    const alphaMap = loader.load(`/boiasomorrostro/Assets/Terrain/PortGround/port_mask${suffix}.png`);
 
     const material = new THREE.MeshStandardMaterial({ map, alphaMap, alphaTest: 0.5, roughness: 1, metalness: 0 });
     // Only the port: north-west of the edge it is Montjuïc and the city, from Google's model
