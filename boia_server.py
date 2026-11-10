@@ -21,7 +21,7 @@ It also takes positions of boats without AIS (a patí de vela, say) on an HTTP p
 format of the Traccar Client phone app (OsmAnd protocol: ?id=&lat=&lon=&speed=&bearing=, or its
 JSON body), and relays them as AIS messages of a sailing boat with MMSI "PATI-<id>". Only the
 device ids listed in PATI_DEVICES (.env, "id:Name,id2:Name2") are accepted, plus "simulador"
-(see tools/simulate_pati.py).
+(see tools/simulate_pati.py) if PATI_SIMULATOR=1.
 
 Usage: python3 boia_server.py [port] [http port]   (default 8766 for the AIS WebSocket and 8767
 for the proxy and the patí positions; see Assets/Scripts/config.js)
@@ -84,7 +84,11 @@ def read_origins():
 
 
 def read_pati_devices():
-    devices = {'simulador': 'Patí (simulat)'}
+    """Phones allowed to send positions: PATI_DEVICES, plus the simulator if PATI_SIMULATOR=1
+    (only for testing: anyone could otherwise send a fake patí to a public server)"""
+    devices = {}
+    if (read_env('PATI_SIMULATOR') or '').lower() in ('1', 'true', 'yes'):
+        devices['simulador'] = 'Patí (simulat)'
     for entry in (read_env('PATI_DEVICES') or '').split(','):
         device_id, _, name = entry.strip().partition(':')
         if device_id:
