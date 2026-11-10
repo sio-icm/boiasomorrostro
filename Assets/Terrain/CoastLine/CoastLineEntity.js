@@ -19,6 +19,16 @@ const COARSE_RADIUS = 2000; // m: tiles this big are the coarse ones
 const COARSE_MAX_DISTANCE = 15000; // m from the buoy: further, the Earth's curvature already sinks them
 const WATER_LEVEL = 1; // m: where the photographed water of a coarse tile is left
 
+// THE PORT, FLATTENED
+// The cranes, container stacks and ships photographed in the port come out of the photogrammetry
+// as loose shards and blades, which look broken when following a ship there. So the port is
+// flattened to its quays: everything above QUAY_HEIGHT goes down to it (the photo stays as texture).
+// The port: west of PORT_EAST and south of PORT_NORTH (world metres, the buoy at 0, +z south),
+// minus Montjuïc, a real hill. Fading in along PORT_FADE so no wall is left at the edges
+const PORT_EAST = -2300, PORT_NORTH = 900, PORT_FADE = 200;
+const MONTJUIC = { x: -4860, z: 1410, radius: 1100 };
+const QUAY_HEIGHT = 3; // m
+
 function photographedSeaShader(drop) {
   return shader => {
     shader.uniforms.u_coastDrop = { value: drop };
@@ -32,7 +42,14 @@ function photographedSeaShader(drop) {
         vCoastHeight = coastWorld.y;
         vCoastNear = 1.0 - smoothstep(${NEAR.toFixed(1)}, ${FAR.toFixed(1)}, distance(cameraPosition.xz, coastWorld.xz));
         // Down in world metres (the tiles hang from scaled nodes)
-        transformed.y -= u_coastDrop * vCoastNear / length(modelMatrix[1].xyz);`);
+        float coastScale = length(modelMatrix[1].xyz);
+        transformed.y -= u_coastDrop * vCoastNear / coastScale;
+        // The port, flattened (see above)
+        vec3 coastNow = (modelMatrix * vec4(transformed, 1.0)).xyz;
+        float inPort = (1.0 - smoothstep(${PORT_EAST.toFixed(1)}, ${(PORT_EAST + PORT_FADE).toFixed(1)}, coastNow.x))
+          * smoothstep(${(PORT_NORTH - PORT_FADE).toFixed(1)}, ${PORT_NORTH.toFixed(1)}, coastNow.z)
+          * smoothstep(${MONTJUIC.radius.toFixed(1)}, ${(MONTJUIC.radius + PORT_FADE).toFixed(1)}, distance(coastNow.xz, vec2(${MONTJUIC.x.toFixed(1)}, ${MONTJUIC.z.toFixed(1)})));
+        transformed.y -= inPort * max(0.0, coastNow.y - ${QUAY_HEIGHT.toFixed(1)}) / coastScale;`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         varying float vCoastHeight;
