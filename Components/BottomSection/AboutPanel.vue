@@ -10,7 +10,7 @@
       <dt>{{ $t('aboutPanel.ships') }}</dt>
       <dd>AIS · <a href="https://aisstream.io" target="_blank">aisstream.io</a></dd>
       <dt>{{ $t('aboutPanel.map') }}</dt>
-      <dd><a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> · <a href="https://www.openseamap.org" target="_blank">OpenSeaMap</a> · <a href="https://emodnet.ec.europa.eu/en/bathymetry" target="_blank">EMODnet</a></dd>
+      <dd><a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> · <a href="https://www.openseamap.org" target="_blank">OpenSeaMap</a> · <a href="https://emodnet.ec.europa.eu/en/bathymetry" target="_blank">EMODnet</a> · <a href="https://www.icgc.cat" target="_blank">ICGC</a> (CC BY 4.0)</dd>
     </dl>
 
     <h5>{{ $t('Contact') }}</h5>

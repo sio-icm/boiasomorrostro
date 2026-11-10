@@ -6,6 +6,7 @@ import { RosaVentsEntity } from '/boiasomorrostro/Assets/Orientation/RosaVentsEn
 import { SkyboxEntity } from '/boiasomorrostro/Assets/Skybox/SkyboxEntity.js';
 // CoastLine
 import { CoastLineEntity } from '/boiasomorrostro/Assets/Terrain/CoastLine/CoastLineEntity.js';
+import { PortGroundEntity } from '/boiasomorrostro/Assets/Terrain/PortGround/PortGroundEntity.js';
 
 
 import * as FogShader from '/boiasomorrostro/Assets/Terrain/FogShader.js'
@@ -129,6 +130,8 @@ class SceneManager{
     
     // Coastline
     this.coastLine = new CoastLineEntity(scene);
+    // The port's ground, from the ICGC orthophoto (Google's model is hidden there)
+    this.portGround = new PortGroundEntity(scene);
   
 
     // Ocean
