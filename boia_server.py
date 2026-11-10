@@ -254,11 +254,13 @@ async def main(port, http_port):
     api_key = read_api_key()
     devices = read_pati_devices()
     origins = read_origins()
-    # The HTTP port listens on every interface, so a phone on the same network can reach it
-    http_server = await asyncio.start_server(lambda r, w: http_handler(r, w, devices, origins), '0.0.0.0', http_port)
+    # The HTTP port listens on BOIA_HTTP_HOST: by default every interface, so a phone on the same
+    # network can reach it; 127.0.0.1 on a server, behind nginx
+    http_host = read_env('BOIA_HTTP_HOST') or '0.0.0.0'
+    http_server = await asyncio.start_server(lambda r, w: http_handler(r, w, devices, origins), http_host, http_port)
     # The AIS feed only for the allowed websites (browsers always send their origin)
     async with websockets.serve(client_handler, 'localhost', port, origins=sorted(origins)), http_server:
-        print(f'AIS on ws://localhost:{port}; proxy and patí positions on http://<this computer>:{http_port}/')
+        print(f'AIS on ws://localhost:{port}; proxy and patí positions on http://{http_host}:{http_port}/')
         print('Allowed origins:', ', '.join(sorted(origins)))
         await upstream(api_key)
 
