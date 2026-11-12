@@ -146,10 +146,11 @@ export default {
     this.forecasts.wind.group.addTo(map);
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
-    // Buoy: yellow buoy with a pulsing halo and the wind arrow around it
+    // Buoy: yellow buoy in our blue ring (see ownAssets.js), with a halo that pulses while it
+    // transmits (see updateBuoyData), and the wind arrow around it
     const buoyIcon = L.divIcon({
       className: 'map-buoy',
-      html: `<div class="map-buoy-pulse"></div>
+      html: `<div class="map-buoy-pulse" style="display: none"></div><div class="map-own-ring map-buoy-ring"></div>
         <div class="map-wind" style="display: none"><div class="map-wind-arrow"></div></div>
         <svg class="map-buoy-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#f5c400" stroke="var(--darkBlue)" stroke-width="2"/><circle cx="12" cy="12" r="3.5" fill="var(--darkBlue)"/></svg>`,
       iconSize: [80, 80],
@@ -396,6 +397,8 @@ export default {
       };
       this.buoyMarker.setPopupContent(this.buoyCardHTML());
       this.bindCardButton();
+      const live = buoy.latestDate && Date.now() - buoy.latestDate < window.OwnAssets.BUOY_LIVE_HOURS * 3600e3;
+      this.buoyMarker.getElement().querySelector('.map-buoy-pulse').style.display = live ? '' : 'none';
       // Wind arrow, pointing where the wind blows to (WDIR is where it comes from)
       if (this.buoyData.windDirection != undefined) {
         const windEl = this.buoyMarker.getElement().querySelector('.map-wind');
@@ -429,7 +432,7 @@ export default {
           </table>
           <button class="map-card-button">${t("See observations")}</button>`;
       }
-      return `<div class="map-card"><div class="map-card-title">${t("Somorrostro buoy")}</div>${body}</div>`;
+      return `<div class="map-card"><div class="map-card-title">${t("Somorrostro buoy")}</div>${this.ownTagHTML('ICM-CSIC · ICATMAR')}${body}</div>`;
     },
     // Recompute Leaflet's internal size after the container has resized
     invalidateMapSize() {
@@ -625,7 +628,19 @@ export default {
     },
     // Arrow pointing where it heads, a dot when stopped, a diamond for aids to navigation.
     // Bigger for long ships
+    // Our vehicles (see ownAssets.js) in our blue ring, pulsing while they transmit
     shipIcon(ship) {
+      const icon = this.baseShipIcon(ship);
+      if (!window.OwnAssets.ownGroupOf(ship.MMSI)) return icon;
+      const live = window.OwnAssets.isLive(ship);
+      return L.divIcon({ ...icon.options, className: 'map-ship map-own',
+        html: `<div class="map-own-ring${live ? ' live' : ''}"></div>${icon.options.html}` });
+    },
+    // Our equipment's tag on its card: who it belongs to
+    ownTagHTML(owner) {
+      return `<div class="map-own-tag">${this.$i18n.t("Own equipment")}${owner ? ' · ' + owner : ''}</div>`;
+    },
+    baseShipIcon(ship) {
       const { color } = this.shipCategory(ship);
       const heading = this.shipHeading(ship);
       const size = ship.length > 100 ? 26 : 20;
@@ -699,13 +714,14 @@ export default {
       const minutes = (Date.now() - new Date(ship.lastTmst).getTime()) / 60000;
       return `<div class="map-card">
         <div class="map-card-title">${ship.shipName}</div>
+        ${window.OwnAssets.ownGroupOf(ship.MMSI) ? this.ownTagHTML(window.OwnAssets.ownGroupOf(ship.MMSI).owner) : ''}
         <div class="map-card-date"><span class="map-ship-dot" style="background: ${category.color}"></span>${t(category.label)}
           · ${this.formatTimeAgo(minutes)}</div>
         <table class="map-card-table">${rows.map(([name, value]) => `<tr><td>${name}</td><td>${value}</td></tr>`).join('')}</table>
         ${this.isBlueBoat(ship) ? this.fleetFooterHTML() : ''}
       </div>`;
     },
-    // Under a BlueBoat's card: who it is, and the link to the BlueLab's fleet tracker while it answers.
+    // Under a BlueBoat's card: the link to the BlueLab's fleet tracker while it answers.
     // If it stops answering (it runs on a lab computer), the link gives way to a note
     fleetFooterHTML() {
       const t = (key) => this.$i18n.t(key);
@@ -713,7 +729,7 @@ export default {
       const link = fleet?.up && fleet.url
         ? `<a class="map-card-link" href="${fleet.url}" target="_blank" rel="noopener">${t("See on the fleet tracker")} &#8599;</a>`
         : `<div class="map-card-note">${t("The fleet tracker is not available now")}</div>`;
-      return `<div class="map-card-note">${t("BlueLab (ICM-CSIC) autonomous vehicle")}</div>${link}`;
+      return link; // Whose it is, in its tag (see ownTagHTML)
     },
     // When the fleet tracker starts or stops answering: the open cards, current
     updateShipCards() {
@@ -856,6 +872,49 @@ export default {
   border-radius: 50%;
   background: rgba(245, 196, 0, 0.5);
   animation: map-buoy-pulse 2s ease-out infinite;
+}
+/* OUR EQUIPMENT (see ownAssets.js): a blue ring, that pulses while it transmits */
+.map-own-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  box-sizing: border-box;
+  border: 2px solid var(--blue);
+  border-radius: 50%;
+  background: rgba(var(--blueRGB), 0.1);
+}
+.map-own-ring.live::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--blue);
+  border-radius: 50%;
+  animation: map-own-pulse 2s ease-out infinite;
+}
+@keyframes map-own-pulse {
+  from { transform: scale(1); opacity: 0.8; }
+  to { transform: scale(2); opacity: 0; }
+}
+.map-own svg {
+  position: relative; /* Over the ring */
+}
+.map-buoy-ring {
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+}
+.map-own-tag {
+  display: inline-block;
+  margin: 2px 0 4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--blue);
+  color: white;
+  font-size: 0.62rem;
+  font-weight: 600;
 }
 @keyframes map-buoy-pulse {
   from { transform: scale(0.6); opacity: 1; }

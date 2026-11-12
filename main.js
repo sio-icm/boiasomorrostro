@@ -43,6 +43,10 @@ window.WMTSTileManager = new WMTSTileManagerClass();
 import * as BoiaConfig from './Assets/Scripts/config.js';
 window.BoiaConfig = BoiaConfig;
 
+// Our equipment (see OwnAssetsMenu.vue and MapBuoyLocation.vue)
+import * as OwnAssets from './Assets/Scripts/ownAssets.js';
+window.OwnAssets = OwnAssets;
+
 // Import AISManager
 import AISManagerClass from './Assets/Scripts/AIS/AISManager.js';
 window.AISManager = new AISManagerClass();

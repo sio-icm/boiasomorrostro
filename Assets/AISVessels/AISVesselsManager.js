@@ -1,6 +1,7 @@
 import { VesselEntity, TankerVesselEntity, CargoVesselEntity, CruiseBigEntity } from "./VesselEntity.js";
 import { PatiEntity } from "./PatiEntity.js";
 import { BlueBoatEntity } from "./BlueBoatEntity.js";
+import { OwnMarker } from "./OwnMarker.js";
 
 // The AIS vessels in the 3D scene: one entity per ship (see AISManager), with a model by its
 // type, moving with its reports (see MovingVessel).
@@ -28,7 +29,10 @@ class AISVesselsManager {
 
   // Called every frame by SceneManager
   update(dt, ocean, windFrom) {
-    Object.values(this.ships).forEach(ship => ship.update?.(dt, ocean, windFrom));
+    Object.values(this.ships).forEach(ship => {
+      ship.update?.(dt, ocean, windFrom);
+      ship.ownMarker?.update(ship.root, window.sceneManager?.camera, ship.length); // Ours (see createShip)
+    });
     this.sinceCleanUp += dt;
     if (this.sinceCleanUp > 10) {
       this.sinceCleanUp = 0;
@@ -81,7 +85,12 @@ class AISVesselsManager {
   }
 
   createShip = (Model, shipInfo) => {
-    if (Model === PatiEntity || Model === BlueBoatEntity) return new Model(this.scene, shipInfo, this.LONGITUDE, this.LATITUDE);
+    if (Model === PatiEntity || Model === BlueBoatEntity) {
+      const ship = new Model(this.scene, shipInfo, this.LONGITUDE, this.LATITUDE);
+      // Our vehicles, marked with a ring (see ownAssets.js)
+      if (window.OwnAssets?.ownGroupOf(shipInfo.MMSI)) ship.ownMarker = new OwnMarker(this.scene);
+      return ship;
+    }
     const ship = new Model(this.scene, shipInfo, () => ship.setReport(shipInfo));
     ship.LONGITUDE = this.LONGITUDE;
     ship.LATITUDE = this.LATITUDE;
@@ -91,6 +100,7 @@ class AISVesselsManager {
   remove = (mmsi) => {
     const ship = this.ships[mmsi];
     if (ship?.root) this.scene.remove(ship.root);
+    ship?.ownMarker?.remove();
     ship.removed = true; // If its model is still loading (see VesselEntity.addToScene)
     delete this.ships[mmsi];
   }
