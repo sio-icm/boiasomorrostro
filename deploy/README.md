@@ -18,8 +18,11 @@ dirección del servidor es `https://iot.icm.csic.es/pati`.
 Para subir una versión nueva de la web, desde el repositorio:
 
 ```bash
-git ls-files | grep -v -E '^(deploy/|tools/|\.github/|.*\.py$|\.gitignore)' > /tmp/web.txt && rsync -az --delete --files-from=/tmp/web.txt ./ bardaji@iot.icm.csic.es:/var/www/boiasomorrostro/
+git ls-files | grep -v -E '^(deploy/|tools/)|\.(py|blend)$|(^|/)\.' > /tmp/web.txt && rsync -az --delete --files-from=/tmp/web.txt ./ bardaji@iot.icm.csic.es:/var/www/boiasomorrostro/
 ```
+
+Se queda fuera lo que no es de la web: `deploy/`, `tools/`, los `.py` (el servidor va aparte), los
+`.blend` (originales de Blender de los modelos) y los archivos ocultos (`.gitignore`, `.env.example`...).
 
 Y si cambia `boia_server.py`:
 
