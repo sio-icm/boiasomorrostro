@@ -1,5 +1,6 @@
 import { VesselEntity, TankerVesselEntity, CargoVesselEntity, CruiseBigEntity } from "./VesselEntity.js";
 import { PatiEntity } from "./PatiEntity.js";
+import { BlueBoatEntity } from "./BlueBoatEntity.js";
 
 // The AIS vessels in the 3D scene: one entity per ship (see AISManager), with a model by its
 // type, moving with its reports (see MovingVessel).
@@ -38,6 +39,9 @@ class AISVesselsManager {
   // Boats without AIS, sent from a phone through boia_server.py
   isPati = (shipInfo) => String(shipInfo.MMSI).startsWith('PATI-')
 
+  // The BlueLab's autonomous vehicles, from its fleet tracker through boia_server.py
+  isBlueBoat = (shipInfo) => String(shipInfo.MMSI).startsWith('BLUEBOAT-')
+
   isNearby = (shipInfo) => {
     const north = (shipInfo.latitude - this.LATITUDE) * 111320;
     const east = (shipInfo.longitude - this.LONGITUDE) * 111320 * Math.cos(this.LATITUDE * Math.PI / 180);
@@ -47,6 +51,7 @@ class AISVesselsManager {
   // Which model, from the AIS ship type code (https://api.vtexplorer.com/docs/ref-aistypes.html)
   modelFor = (shipInfo) => {
     if (this.isPati(shipInfo)) return PatiEntity;
+    if (this.isBlueBoat(shipInfo)) return BlueBoatEntity;
     const type = Number(shipInfo.shipTypeId);
     if (type >= 70 && type <= 79) return CargoVesselEntity;
     if (type >= 80 && type <= 89) return TankerVesselEntity;
@@ -76,7 +81,7 @@ class AISVesselsManager {
   }
 
   createShip = (Model, shipInfo) => {
-    if (Model === PatiEntity) return new PatiEntity(this.scene, shipInfo, this.LONGITUDE, this.LATITUDE);
+    if (Model === PatiEntity || Model === BlueBoatEntity) return new Model(this.scene, shipInfo, this.LONGITUDE, this.LATITUDE);
     const ship = new Model(this.scene, shipInfo, () => ship.setReport(shipInfo));
     ship.LONGITUDE = this.LONGITUDE;
     ship.LATITUDE = this.LATITUDE;

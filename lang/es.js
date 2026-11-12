@@ -143,6 +143,12 @@ export default es = {
   "Enlarge": "Ampliar",
   "Reduce": "Reducir",
   "Sailing dinghy": "Patí de vela",
+  "Autonomous vehicle": "Vehículo autónomo",
+  "Battery": "Batería",
+  "Temperature inside": "Temperatura interior",
+  "See on the fleet tracker": "Ver en el panel de la flota",
+  "The fleet tracker is not available now": "El panel de la flota no está disponible ahora",
+  "BlueLab (ICM-CSIC) autonomous vehicle": "Vehículo autónomo del BlueLab (ICM-CSIC)",
   "History": "Histórico",
   history: {
     days7: "7 días",
