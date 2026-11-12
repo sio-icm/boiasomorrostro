@@ -143,6 +143,7 @@ export default ca = {
   "Reduce": "Reduir",
   "Sailing dinghy": "Patí de vela",
   "Our equipment": "Els nostres equips",
+  "Own equipment": "Equip propi",
   "BlueBoats": "BlueBoats",
   "Sailing dinghies": "Patins de vela",
   "No data since": "Sense dades des del",
@@ -155,7 +156,6 @@ export default ca = {
   "Temperature inside": "Temperatura interior",
   "See on the fleet tracker": "Veure al panell de la flota",
   "The fleet tracker is not available now": "El panell de la flota no està disponible ara",
-  "BlueLab (ICM-CSIC) autonomous vehicle": "Vehicle autònom del BlueLab (ICM-CSIC)",
   "History": "Històric",
   history: {
     days7: "7 dies",

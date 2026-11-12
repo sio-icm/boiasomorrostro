@@ -142,6 +142,7 @@ export default en = {
   "Reduce": "Reduce",
   "Sailing dinghy": "Sailing catamaran",
   "Our equipment": "Our equipment",
+  "Own equipment": "Own equipment",
   "BlueBoats": "BlueBoats",
   "Sailing dinghies": "Sailing dinghies",
   "No data since": "No data since",
@@ -154,7 +155,6 @@ export default en = {
   "Temperature inside": "Temperature inside",
   "See on the fleet tracker": "See on the fleet tracker",
   "The fleet tracker is not available now": "The fleet tracker is not available now",
-  "BlueLab (ICM-CSIC) autonomous vehicle": "BlueLab (ICM-CSIC) autonomous vehicle",
   "History": "History",
   history: {
     days7: "7 days",
