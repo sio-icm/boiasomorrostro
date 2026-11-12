@@ -23,19 +23,26 @@ JSON body), and relays them as AIS messages of a sailing boat with MMSI "PATI-<i
 device ids listed in PATI_DEVICES (.env, "id:Name,id2:Name2") are accepted, plus "simulador"
 (see tools/simulate_pati.py) if PATI_SIMULATOR=1.
 
+And the BlueLab's (ICM) autonomous vehicles, BlueBoats, when they are out: read from their public
+fleet tracker (FLEET_URL in .env, https://github.com/BlueLab-ICM/dashboard-public; empty, off) and
+relayed the same way, as MMSI "BLUEBOAT-<id>" with their telemetry. Whether the tracker answers is
+sent to the apps as {"fleet": {"up": ..., "url": ...}}, so they don't link to it while it is down.
+
 Usage: python3 boia_server.py [port] [http port]   (default 8766 for the AIS WebSocket and 8767
 for the proxy and the patí positions; see Assets/Scripts/config.js)
 Requires the websockets package (pip install websockets).
 """
 import asyncio
 import json
+import math
 import os
+import re
 import sys
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 import websockets
 
@@ -52,9 +59,19 @@ proxy_cache = {}  # url -> (fetched at, status, content type, body)
 PATI_DIMENSION = {'A': 3, 'B': 3, 'C': 1, 'D': 1}
 PATI_TYPE = 36  # Sailing
 
+# BlueLab's fleet: shown only when seen in the last FLEET_MAX_HOURS (out on a campaign); their own
+# simulated vehicles (FLEET_EXCLUDE prefixes) never
+FLEET_POLL_SECONDS = 300  # Also asked every 5 min, in case their live feed drops a message
+FLEET_TIMEOUT = 20  # s
+# A BlueBoat (Blue Robotics): a catamaran 1.2 m long, 0.85 m wide
+BLUEBOAT_DIMENSION = {'A': 0.6, 'B': 0.6, 'C': 0.43, 'D': 0.42}
+BLUEBOAT_TYPE = 0  # Not available: the app knows them by their MMSI
+
 clients = set()
 history = []  # (received at, message)
-pati_static = {}  # MMSI -> its ShipStaticData message, sent to every new client
+pati_static = {}  # MMSI -> its ShipStaticData message, sent to every new client (patís and BlueBoats)
+fleet = {'up': None, 'url': None}  # Whether the BlueLab's tracker answers, and its address
+fleet_last = {}  # BlueBoat device -> (time, lat, lon) of its last position, for its speed
 
 
 def read_env(name):
@@ -164,6 +181,117 @@ def pati_fix(path, body):
     return params.get('id'), lat, lon, speed, bearing, when
 
 
+# BLUELAB'S FLEET (BlueBoats), from their public tracker. Everything that depends on its format is
+# here: if it changes, only this needs adapting
+def read_fleet_settings():
+    """(tracker URL or None, max age in hours, excluded id prefixes, {id: name})"""
+    url = (read_env('FLEET_URL') or '').strip().rstrip('/') or None
+    hours = float(read_env('FLEET_MAX_HOURS') or 6)
+    exclude = tuple(p.strip() for p in (read_env('FLEET_EXCLUDE') or 'sim-').split(',') if p.strip())
+    names = {}
+    for entry in (read_env('FLEET_NAMES') or '').split(','):
+        device_id, _, name = entry.strip().partition(':')
+        if device_id and name:
+            names[device_id] = name
+    return url, hours, exclude, names
+
+
+def fleet_get(url):
+    with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'boia-server'}), timeout=FLEET_TIMEOUT) as res:
+        return json.loads(res.read())
+
+
+def parse_time(text):
+    """Seconds since 1970 of an ISO time (with Z, and maybe nanoseconds), or None"""
+    try:
+        text = str(text).replace('Z', '+00:00')
+        # Python 3.10 (the server's) only takes 3 or 6 decimals
+        text = re.sub(r'\.(\d+)', lambda m: '.' + (m.group(1) + '000000')[:6], text)
+        return datetime.fromisoformat(text).timestamp()
+    except ValueError:
+        return None
+
+
+def set_fleet_up(up):
+    """Tells the apps when the tracker starts or stops answering"""
+    if fleet['up'] == up:
+        return
+    fleet['up'] = up
+    print('✅ BlueLab fleet tracker answering' if up else '❌ BlueLab fleet tracker not answering')
+    websockets.broadcast(clients, json.dumps({'fleet': fleet}))
+
+
+def fleet_report(device_id, timestamp, data, settings):
+    """Relays a BlueBoat's record (the tracker's fields) as AIS messages, if it is recent"""
+    _, hours, exclude, names = settings
+    lat, lon, when = data.get('frontseat_lat'), data.get('frontseat_lon'), parse_time(timestamp)
+    if not device_id or device_id.startswith(exclude) or lat is None or lon is None or when is None:
+        return
+    if when < time.time() - hours * 3600:
+        return
+    previous = fleet_last.get(device_id)
+    if previous and when <= previous[0]:
+        return  # Already sent (the live feed and the periodic check overlap)
+    # Speed from the previous position (they don't send it), if not too old
+    speed = 0
+    if previous and when - previous[0] < 15 * 60:
+        north = (lat - previous[1]) * 111320
+        east = (lon - previous[2]) * 111320 * math.cos(math.radians(lat))
+        speed = math.hypot(north, east) / (when - previous[0]) / 0.514444
+    fleet_last[device_id] = (when, lat, lon)
+    heading = data.get('frontseat_heading')
+    heading = round(heading) % 360 if isinstance(heading, (int, float)) and heading > 0 else 511
+    mmsi = f'BLUEBOAT-{device_id}'
+    telemetry = {key: data.get(key) for key in ('battery', 'lorawan_temp', 'frontseat_temp', 'backseat_temp')
+                 if isinstance(data.get(key), (int, float))}
+    metadata = {'MMSI_String': mmsi, 'ShipName': names.get(device_id, f'BlueBoat {device_id}'), 'latitude': lat,
+                'longitude': lon, 'time_utc': datetime.fromtimestamp(when, timezone.utc).isoformat(),
+                'Telemetry': telemetry}
+    if mmsi not in pati_static:
+        pati_static[mmsi] = {'MessageType': 'ShipStaticData', 'MetaData': metadata,
+                             'Message': {'ShipStaticData': {'Type': BLUEBOAT_TYPE, 'Dimension': BLUEBOAT_DIMENSION}}}
+        publish(pati_static[mmsi])
+    publish({'MessageType': 'PositionReport', 'MetaData': metadata,
+             'Message': {'PositionReport': {'TrueHeading': heading, 'Sog': round(speed, 1)}}})
+
+
+async def fleet_poll(settings):
+    """Every few minutes: which vehicles there are, and the last record of the recent ones"""
+    url, hours, exclude, _ = settings
+    while True:
+        try:
+            devices = await asyncio.to_thread(fleet_get, f'{url}/api/devices')
+            for device in devices:
+                device_id = device.get('device_id') or ''
+                seen = parse_time(device.get('last_seen'))
+                if device_id.startswith(exclude) or seen is None or seen < time.time() - hours * 3600:
+                    continue
+                records = await asyncio.to_thread(fleet_get, f'{url}/api/trajectory/{quote(device_id)}?limit=2')
+                for record in records:
+                    fleet_report(device_id, record.get('timestamp'), record, settings)
+            set_fleet_up(True)
+        except (OSError, ValueError, TypeError, AttributeError) as error:
+            print('❌ BlueLab fleet tracker:', error)
+            set_fleet_up(False)
+        await asyncio.sleep(FLEET_POLL_SECONDS)
+
+
+async def fleet_stream(settings):
+    """Their live feed: each new record as it arrives. Reconnects when it drops"""
+    ws_url = 'ws' + settings[0][len('http'):] + '/'
+    while True:
+        try:
+            async with websockets.connect(ws_url, open_timeout=FLEET_TIMEOUT) as ws:
+                print('✅ Connected to the BlueLab fleet tracker')
+                async for raw in ws:
+                    message = json.loads(raw)
+                    if message.get('type') == 'telemetry' and isinstance(message.get('data'), dict):
+                        fleet_report(message.get('deviceId'), message.get('timestamp'), message['data'], settings)
+        except (OSError, ValueError, asyncio.TimeoutError, websockets.WebSocketException) as error:
+            print('❌ BlueLab fleet live feed lost, retrying in 60 s:', error)
+        await asyncio.sleep(60)
+
+
 # ERDDAP PROXY
 def fetch_upstream(url):
     """(status, content type, body) of an allowed ERDDAP URL, cached for a minute"""
@@ -241,6 +369,8 @@ async def client_handler(ws, path=None):
     clients.add(ws)
     try:
         await ws.send(json.dumps({'bboxes': BBOXES}))
+        if fleet['url']:
+            await ws.send(json.dumps({'fleet': fleet}))
         # Patís' static data first, in case it left the history window
         recent = [message for _, message in history]
         await ws.send(json.dumps({'history': [m for m in pati_static.values() if m not in recent] + recent}))
@@ -262,6 +392,12 @@ async def main(port, http_port):
     async with websockets.serve(client_handler, 'localhost', port, origins=sorted(origins)), http_server:
         print(f'AIS on ws://localhost:{port}; proxy and patí positions on http://{http_host}:{http_port}/')
         print('Allowed origins:', ', '.join(sorted(origins)))
+        fleet_settings = read_fleet_settings()
+        fleet['url'] = fleet_settings[0]
+        if fleet['url']:
+            print('BlueLab fleet tracker:', fleet['url'])
+            asyncio.create_task(fleet_poll(fleet_settings))
+            asyncio.create_task(fleet_stream(fleet_settings))
         await upstream(api_key)
 
 
