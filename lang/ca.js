@@ -144,6 +144,7 @@ export default ca = {
   "Sailing dinghy": "Patí de vela",
   "Our equipment": "Els nostres equips",
   "Own equipment": "Equip propi",
+  "Simulated": "Simulat",
   "BlueBoats": "BlueBoats",
   "Sailing dinghies": "Patins de vela",
   "No data since": "Sense dades des del",
