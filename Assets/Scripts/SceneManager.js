@@ -550,11 +550,13 @@ class SceneManager{
     this.followed = vessel;
     this.followedMMSI = mmsi;
     this.flight = { camera: this.camera.position.clone(), target: this.controls.target.clone(), start: performance.now() };
+    if (window.GUIManager) window.GUIManager.followed = mmsi; // Its card in the 3D view (see NowCard)
     return true;
   }
   stopFollowing = function(){
     this.followed = undefined;
     this.flight = undefined;
+    if (window.GUIManager) window.GUIManager.followed = undefined;
   }
   // Where the camera goes for the followed vessel: behind it, further for bigger ships, and closer
   // for the smallest (a BlueBoat is 1.2 m long)
