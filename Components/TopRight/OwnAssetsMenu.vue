@@ -121,7 +121,8 @@ export default {
       else window.sceneManager?.follow(item.id);
       this.$gui.selectedSection = 'map';
       if (this.$gui.panelState === 'hidden') this.$gui.panelState = 'compact';
-      // Once the map is there (it may have just opened)
+      // The map measures itself again once the panel is open (as NowCard.open), and then its card
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
       setTimeout(() => window.eventBus.emit('Canvas3D_objectPicked', item.id), 400);
       this.open = false;
     },
