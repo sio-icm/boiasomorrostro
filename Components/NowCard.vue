@@ -2,7 +2,28 @@
   <!-- The conditions at the app's moment (see GUIManager.selectedTime; now by default), over the
        3D view: measured at the buoy if it has data then, else forecast (and since when the buoy is
        silent). Opens the observations or the forecast. Hidden while the data panel covers the 3D view -->
-  <div class="now-card clickable" v-if="rows.length && $gui.panelState !== 'fullscreen'" @click="open" :title="$t(measured ? 'Observations' : 'Forecast')">
+  <!-- While the camera follows a vessel (see GUIManager.followed): that vessel, as its card on the
+       map (see vesselInfo.js), and the conditions go to a strip at the bottom (see ConditionsStrip) -->
+  <div class="now-card now-vessel" v-if="vessel && $gui.panelState !== 'fullscreen'">
+    <div class="now-title">
+      <span>{{ vessel.title }}</span>
+      <button class="now-close" @click="leaveVessel" :title="$t('Back to the buoy')">&times;</button>
+    </div>
+    <div v-if="vessel.tag" class="now-tag" :class="{ simulated: vessel.tag.simulated }">{{ vessel.tag.text }}</div>
+    <div class="now-kind">
+      <i class="now-dot" :style="{ background: vessel.category.color }"></i>{{ $t(vessel.category.label) }} · {{ ago(vessel.minutes) }}
+    </div>
+    <div class="now-row" v-for="row in vessel.rows" :key="row.label">
+      <span>{{ row.label }}</span>
+      <b>
+        <i v-if="row.heading != undefined" class="now-arrow" :style="{ transform: `rotate(${row.heading}deg)` }">&#8593;</i>
+        {{ row.value }}
+      </b>
+    </div>
+    <a v-if="vessel.link" class="now-link" :href="vessel.link.href" target="_blank" rel="noopener">{{ vessel.link.text }} &#8599;</a>
+    <div v-else-if="vessel.note" class="now-warning">{{ vessel.note }}</div>
+  </div>
+  <div v-else class="now-card clickable" v-show="rows.length && $gui.panelState !== 'fullscreen'" @click="open" :title="$t(measured ? 'Observations' : 'Forecast')">
     <div class="now-title">
       <span>{{ title }}</span>
       <span class="now-source">{{ measured ? $t('Buoy') + (age ? ' · ' + age : '') : $t('Forecast') }}</span>
@@ -33,9 +54,15 @@ const RECENT_HOURS = 3;
 export default {
   name: 'NowCard',
   data() {
-    return { rows: [], measured: false, age: '', lastDate: '' };
+    return { rows: [], measured: false, age: '', lastDate: '', tick: 0 };
   },
   computed: {
+    // What the followed vessel's card shows; again with each of its reports, and every 10 s (tick)
+    vessel() {
+      this.tick;
+      const ship = this.$gui.followed && window.AISManager?.ships[this.$gui.followed];
+      return ship ? window.VesselInfo.vesselInfo(ship, (key, values) => this.$t(key, values)) : undefined;
+    },
     title() {
       return this.$gui.selectedTime
         ? this.$gui.selectedTime.toLocaleString(this.$i18n.locale, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -50,9 +77,15 @@ export default {
   mounted() {
     this.update();
     this.interval = setInterval(this.update, 10 * 60 * 1000);
+    this.ticker = setInterval(() => this.tick++, 10 * 1000);
+    window.eventBus.on('AISManager_receivedAISMessage', this.onAISMessage);
+    window.eventBus.on('AISManager_fleet', this.onAISMessage);
   },
   unmounted() {
     clearInterval(this.interval);
+    clearInterval(this.ticker);
+    window.eventBus.off('AISManager_receivedAISMessage', this.onAISMessage);
+    window.eventBus.off('AISManager_fleet', this.onAISMessage);
   },
   methods: {
     async update() {
@@ -94,6 +127,21 @@ export default {
         this.lastDate = latest ? latest.toLocaleDateString(this.$i18n.locale, { day: 'numeric', month: 'short' }) : '';
       }
       this.rows = rows.filter(row => row.value != undefined);
+      // Also for the strip shown while following a vessel (see ConditionsStrip)
+      this.$gui.conditions = {
+        title: this.title, rows: this.rows, measured: this.measured,
+        source: this.measured ? this.$t('Buoy') + (this.age ? ' · ' + this.age : '') : this.$t('Forecast'),
+      };
+    },
+    onAISMessage(ship) {
+      if (!ship || ship.MMSI == undefined || ship.MMSI === this.$gui.followed) this.tick++;
+    },
+    // The × of a vessel's card: the camera back to the buoy (which stops following)
+    leaveVessel() {
+      window.sceneManager?.focusOnBuoy();
+    },
+    ago(minutes) {
+      return window.VesselInfo.timeAgo(minutes, (key, values) => this.$t(key, values));
     },
     // Waves and sea temperature at the buoy at a moment, from Open-Meteo Marine (as the 3D sea,
     // see Canvas3D), hourly from 3 days ago to 3 ahead
@@ -165,6 +213,52 @@ export default {
 .now-arrow {
   display: inline-block;
   font-style: normal;
+}
+.now-vessel {
+  max-width: min(260px, calc(100vw - 40px));
+}
+.now-close {
+  padding: 0 4px;
+  background: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  opacity: 0.8;
+}
+.now-close:hover {
+  background: none;
+  opacity: 1;
+}
+.now-tag {
+  display: inline-block;
+  margin-bottom: 3px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--blue);
+  font-size: 0.62rem;
+  font-weight: 600;
+}
+.now-tag.simulated {
+  background: #e0a21b;
+}
+.now-kind {
+  font-size: 0.7rem;
+  opacity: 0.85;
+  margin-bottom: 3px;
+}
+.now-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border-radius: 50%;
+  border: 1px solid white;
+}
+.now-link {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #9ec3ff;
 }
 .now-warning {
   margin-top: 4px;

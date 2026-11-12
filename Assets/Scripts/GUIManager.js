@@ -34,6 +34,11 @@ class GUIManager {
   // Whether the camera is on the buoy (not following a vessel); set by SceneManager, shows its
   // institutions' logos (see NowCard)
   buoyInFocus = true;
+  // The vessel the 3D camera follows (its MMSI), if any (see SceneManager.follow): the 3D view's
+  // card shows it, and the conditions at the buoy go to a strip at the bottom (see NowCard)
+  followed = undefined;
+  // The conditions at the buoy as the card shows them (see NowCard), also for that strip
+  conditions = undefined;
 
   // Whether the bottom section is fullscreen, compact (normal height) or hidden
   _panelState = 'compact';

@@ -3,18 +3,7 @@
 </template>
 
 <script>
-// Ship categories from the AIS ship type code (https://api.vtexplorer.com/docs/ref-aistypes.html),
-// each with its colour on the map. The first one that matches is used
-const SHIP_CATEGORIES = [
-  { label: "Cargo", color: '#3f9a5a', matches: type => type >= 70 && type <= 79 },
-  { label: "Tanker", color: '#d6454f', matches: type => type >= 80 && type <= 89 },
-  { label: "Passenger", color: 'var(--lightBlue)', matches: type => type >= 60 && type <= 69 },
-  { label: "High speed craft", color: '#e0a21b', matches: type => type >= 40 && type <= 49 },
-  { label: "Fishing", color: '#ef7d3c', matches: type => type == 30 },
-  { label: "Recreational", color: '#a05cc4', matches: type => type == 36 || type == 37 },
-  { label: "Service vessel", color: '#1fa3a3', matches: type => [31, 32, 33, 34, 35, 50, 51, 52, 53, 54, 55, 58].includes(type) },
-  { label: "Other", color: '#7d8a99', matches: () => true },
-];
+// Ship categories, headings and what their cards show: in Assets/Scripts/AIS/vesselInfo.js
 const TRAIL_POINTS = 40; // positions kept for each ship's trail
 // Other buoys of ICATMAR's network on the same ERDDAP, with the latest of each one shown on its card
 const NETWORK_BUOYS = [
@@ -606,25 +595,18 @@ export default {
         interactive: false, color: 'var(--darkBlue)', weight: 1, opacity: 0.35, dashArray: '2 6', fill: false,
       }))).addTo(this.map);
     },
-    // Boats without AIS whose position comes from a phone (see boia_server.py)
+    // Boats without AIS, our vehicles, categories and headings: see vesselInfo.js
     isPati(ship) {
-      return String(ship.MMSI).startsWith('PATI-');
+      return window.VesselInfo.isPati(ship);
     },
-    // The BlueLab's autonomous vehicles, from its fleet tracker (see boia_server.py)
     isBlueBoat(ship) {
-      return String(ship.MMSI).startsWith('BLUEBOAT-');
+      return window.VesselInfo.isBlueBoat(ship);
     },
     shipCategory(ship) {
-      if (this.isPati(ship)) return { label: "Sailing dinghy", color: '#e5397a' };
-      if (this.isBlueBoat(ship)) return { label: "Autonomous vehicle", color: '#e8b400' };
-      if (String(ship.MMSI).startsWith('99')) return { label: "Aid to navigation", color: 'var(--darkBlue)' };
-      return SHIP_CATEGORIES.find(category => category.matches(Number(ship.shipTypeId)));
+      return window.VesselInfo.shipCategory(ship);
     },
-    // Heading in degrees, or undefined: 511 means not available, then the one inferred from the track
     shipHeading(ship) {
-      if (ship.heading != undefined && ship.heading != 511) return Number(ship.heading);
-      if (ship.empiricHeading != undefined) return Number(ship.empiricHeading);
-      return undefined;
+      return window.VesselInfo.shipHeading(ship);
     },
     // Arrow pointing where it heads, a dot when stopped, a diamond for aids to navigation.
     // Bigger for long ships
@@ -698,39 +680,23 @@ export default {
       }
       if (entry.marker.isPopupOpen()) entry.marker.getPopup().update();
     },
+    // A ship's card, from what vesselInfo.js says of it (the 3D view's card shows the same)
     shipCardHTML(ship) {
       const t = (key) => this.$i18n.t(key);
-      const category = this.shipCategory(ship);
-      const heading = this.shipHeading(ship);
-      const rows = [];
-      if (ship.sog != undefined) rows.push([t("Speed"), `${Number(ship.sog).toFixed(1)} kn (${(ship.sog * 1.852).toFixed(1)} km/h)`]);
-      if (heading != undefined) rows.push([t("Heading"),
-        `${heading.toFixed(0)}° <i class="map-card-arrow" style="transform: rotate(${heading}deg)">&#8593;</i>`]);
-      if (ship.length > 0 && ship.beam > 0) rows.push([t("Size"), `${ship.length} × ${ship.beam} m`]);
-      if (!this.isPati(ship) && !this.isBlueBoat(ship)) rows.push(['MMSI', ship.MMSI]);
-      const telemetry = ship.telemetry || {};
-      if (telemetry.battery != undefined) rows.push([t("Battery"), `${telemetry.battery.toFixed(1)} V`]);
-      if (telemetry.lorawan_temp != undefined) rows.push([t("Temperature inside"), `${telemetry.lorawan_temp.toFixed(1)} ºC`]);
-      const minutes = (Date.now() - new Date(ship.lastTmst).getTime()) / 60000;
+      const info = window.VesselInfo.vesselInfo(ship, t);
+      const rows = info.rows.map(row => `<tr><td>${row.label}</td><td>${row.value}${row.heading == undefined ? ''
+        : ` <i class="map-card-arrow" style="transform: rotate(${row.heading}deg)">&#8593;</i>`}</td></tr>`).join('');
+      const tag = info.tag ? `<div class="map-own-tag${info.tag.simulated ? ' map-simulated-tag' : ''}">${info.tag.text}</div>` : '';
+      const footer = info.link ? `<a class="map-card-link" href="${info.link.href}" target="_blank" rel="noopener">${info.link.text} &#8599;</a>`
+        : info.note ? `<div class="map-card-note">${info.note}</div>` : '';
       return `<div class="map-card">
-        <div class="map-card-title">${ship.shipName}</div>
-        ${ship.simulated ? `<div class="map-own-tag map-simulated-tag">${t("Simulated")}</div>`
-          : window.OwnAssets.ownGroupOf(ship.MMSI) ? this.ownTagHTML(window.OwnAssets.ownGroupOf(ship.MMSI).owner) : ''}
-        <div class="map-card-date"><span class="map-ship-dot" style="background: ${category.color}"></span>${t(category.label)}
-          · ${this.formatTimeAgo(minutes)}</div>
-        <table class="map-card-table">${rows.map(([name, value]) => `<tr><td>${name}</td><td>${value}</td></tr>`).join('')}</table>
-        ${this.isBlueBoat(ship) && !ship.simulated ? this.fleetFooterHTML() : ''}
+        <div class="map-card-title">${info.title}</div>
+        ${tag}
+        <div class="map-card-date"><span class="map-ship-dot" style="background: ${info.category.color}"></span>${t(info.category.label)}
+          · ${this.formatTimeAgo(info.minutes)}</div>
+        <table class="map-card-table">${rows}</table>
+        ${footer}
       </div>`;
-    },
-    // Under a BlueBoat's card: the link to the BlueLab's fleet tracker while it answers.
-    // If it stops answering (it runs on a lab computer), the link gives way to a note
-    fleetFooterHTML() {
-      const t = (key) => this.$i18n.t(key);
-      const fleet = window.AISManager?.fleet;
-      const link = fleet?.up && fleet.url
-        ? `<a class="map-card-link" href="${fleet.url}" target="_blank" rel="noopener">${t("See on the fleet tracker")} &#8599;</a>`
-        : `<div class="map-card-note">${t("The fleet tracker is not available now")}</div>`;
-      return link; // Whose it is, in its tag (see ownTagHTML)
     },
     // When the fleet tracker starts or stops answering: the open cards, current
     updateShipCards() {
@@ -738,18 +704,9 @@ export default {
         if (marker.isPopupOpen()) marker.getPopup().update();
       });
     },
-    // Same steps as WindSection.formatTimeAgo, in minutes
+    // Same steps as WindSection.formatTimeAgo, in minutes (see vesselInfo.js)
     formatTimeAgo(minutes) {
-      if (isNaN(minutes)) return '';
-      const hours = minutes / 60;
-      if (minutes < 1) return this.$t('timeAgo.now');
-      if (hours < 1) return this.$t('timeAgo.minutes', { n: Math.floor(minutes) });
-      if (hours < 2) return this.$t('timeAgo.hour');
-      if (hours < 24) return this.$t('timeAgo.hours', { n: Math.floor(hours) });
-      const days = Math.floor(hours / 24);
-      if (days === 1) return this.$t('timeAgo.day');
-      if (days <= 7) return this.$t('timeAgo.days', { n: days });
-      return this.$t('timeAgo.moreThanWeek');
+      return window.VesselInfo.timeAgo(minutes, (key, values) => this.$t(key, values));
     },
     // Keeps the "x min ago" of an open ship card current
     startUpdateLoop() {

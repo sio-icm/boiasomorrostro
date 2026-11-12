@@ -47,6 +47,10 @@ window.BoiaConfig = BoiaConfig;
 import * as OwnAssets from './Assets/Scripts/ownAssets.js';
 window.OwnAssets = OwnAssets;
 
+// What is shown about a vessel, on the map and in the 3D view
+import * as VesselInfo from './Assets/Scripts/AIS/vesselInfo.js';
+window.VesselInfo = VesselInfo;
+
 // Import AISManager
 import AISManagerClass from './Assets/Scripts/AIS/AISManager.js';
 window.AISManager = new AISManagerClass();
