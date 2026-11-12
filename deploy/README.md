@@ -60,6 +60,13 @@ boiasomorrostro`). Qué hacer:
 - **si ha cambiado su formato** (su API está en desarrollo), adaptar la parte «BLUELAB'S FLEET» de
   `boia_server.py`, la única que depende de él.
 
+### Barcos simulados
+
+Con `SIMULATED_BOATS=1` en el `.env`, el propio `boia_server.py` saca siempre un BlueBoat y un patí
+simulados cerca de la boya, para enseñar la web aunque no haya nada nuestro en el agua. En la web
+salen como «Simulado». No abre la entrada de posiciones a nadie (eso es `PATI_SIMULATOR`, que en el
+servidor sigue apagado). Para quitarlos, vaciarla y reiniciar el servicio.
+
 ## En otro servidor
 
 La web es estática (GitHub Pages, por ejemplo), pero necesita un pequeño servidor para lo que el
