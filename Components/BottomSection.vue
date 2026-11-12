@@ -3,6 +3,8 @@
        (tabs only), compact and fullscreen by dragging or tapping the handle, or with the buttons -->
   <div id="bottom-section" :class="'panel-' + $gui.panelState">
     <time-control></time-control>
+    <!-- The conditions at the buoy, while the 3D view's card shows a vessel (see NowCard) -->
+    <conditions-strip></conditions-strip>
     <div class="panel-header">
       <div class="panel-handle" @pointerdown="dragStart" :title="$t(isSectionOpen ? 'Collapse' : 'Expand')"><span></span></div>
       <div class="panel-bar">
@@ -42,6 +44,7 @@ import MapBuoyLocation from './BottomSection/MapBuoyLocation.vue';
 import AboutPanel from './BottomSection/AboutPanel.vue';
 import HistorySection from './BottomSection/HistorySection.vue';
 import TimeControl from './TimeControl.vue';
+import ConditionsStrip from './Bottom/ConditionsStrip.vue';
 
 
 export default {
@@ -207,6 +210,7 @@ export default {
     "about": AboutPanel,
     "historySection": HistorySection,
     "time-control": TimeControl,
+    "conditions-strip": ConditionsStrip,
     
   }
 }
