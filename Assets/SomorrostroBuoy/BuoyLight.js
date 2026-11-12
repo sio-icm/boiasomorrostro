@@ -3,7 +3,10 @@ import * as THREE from 'three';
 // THE BUOY'S LANTERN, AT NIGHT
 // A yellow light that flashes in groups, as the real one: Fl(5)Y 20s, the usual characteristic of
 // an oceanographic buoy (an IALA special mark). Five 0.5 s flashes 1 s apart, then dark until the
-// 20 s are up. Change FLASHES, FLASH, GAP and PERIOD to match the real buoy if it differs.
+// 20 s are up. Not confirmed for this buoy: it is not in OpenSeaMap, nor in the news of its
+// deployment (see issue #38). The real one is in the Aviso a los Navegantes of the deployment
+// (Instituto Hidrográfico de la Marina) and in the Libro de Faros; if it differs, change FLASHES,
+// FLASH, GAP and PERIOD.
 const FLASHES = 5, FLASH = 0.5, GAP = 1.0, PERIOD = 20; // s
 const COLOR = new THREE.Color(1.0, 0.78, 0.25); // Yellow
 // The lantern on top of the buoy, in the buoy's own space (see SomorrostroBuoy.glb)
