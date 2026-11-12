@@ -25,6 +25,8 @@
         </svg>
       </button>
 
+      <!-- Our equipment, and whether each one is transmitting -->
+      <own-assets-menu></own-assets-menu>
 
     </div>
   </div>
@@ -35,6 +37,7 @@
 
 
 <script>
+import OwnAssetsMenu from "/boiasomorrostro/Components/TopRight/OwnAssetsMenu.vue";
 
 export default {
   name: "TopRightMenu",
@@ -71,6 +74,7 @@ export default {
     },
   },
   components: {
+    "own-assets-menu": OwnAssetsMenu,
   }
 }
 </script>
