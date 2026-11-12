@@ -283,12 +283,19 @@ async def fleet_stream(settings):
         try:
             async with websockets.connect(ws_url, open_timeout=FLEET_TIMEOUT) as ws:
                 print('✅ Connected to the BlueLab fleet tracker')
+                set_fleet_up(True)
                 async for raw in ws:
                     message = json.loads(raw)
                     if message.get('type') == 'telemetry' and isinstance(message.get('data'), dict):
                         fleet_report(message.get('deviceId'), message.get('timestamp'), message['data'], settings)
         except (OSError, ValueError, asyncio.TimeoutError, websockets.WebSocketException) as error:
             print('❌ BlueLab fleet live feed lost, retrying in 60 s:', error)
+        # The feed ended or failed: whether the tracker itself still answers, so as not to wait for
+        # the next periodic check to tell the apps
+        try:
+            await asyncio.to_thread(fleet_get, f'{settings[0]}/api/devices')
+        except (OSError, ValueError):
+            set_fleet_up(False)
         await asyncio.sleep(60)
 
 
