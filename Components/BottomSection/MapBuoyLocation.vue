@@ -199,6 +199,7 @@ export default {
     // EVENTS
     // AIS messages
     window.eventBus.on('AISManager_receivedAISMessage', this.handleAISMessage);
+    window.eventBus.on('AISManager_fleet', this.updateShipCards);
     // Map fills its container (see .map-container), so it must be told to
     // resize when the container does - e.g. the fullscreen toggle, which
     // dispatches this same 'resize' event once its CSS transition ends.
@@ -215,6 +216,7 @@ export default {
     }
     // Unhook event listener
     window.eventBus.off('AISManager_receivedAISMessage', this.handleAISMessage);
+    window.eventBus.off('AISManager_fleet', this.updateShipCards);
     window.eventBus.off('AISManager_bboxes', this.drawAISCoverage);
     window.eventBus.off('Canvas3D_objectPicked', this.showPicked);
     window.eventBus.off('GUIManager_timeChanged', this.onTimeChanged);
@@ -605,8 +607,13 @@ export default {
     isPati(ship) {
       return String(ship.MMSI).startsWith('PATI-');
     },
+    // The BlueLab's autonomous vehicles, from its fleet tracker (see boia_server.py)
+    isBlueBoat(ship) {
+      return String(ship.MMSI).startsWith('BLUEBOAT-');
+    },
     shipCategory(ship) {
       if (this.isPati(ship)) return { label: "Sailing dinghy", color: '#e5397a' };
+      if (this.isBlueBoat(ship)) return { label: "Autonomous vehicle", color: '#e8b400' };
       if (String(ship.MMSI).startsWith('99')) return { label: "Aid to navigation", color: 'var(--darkBlue)' };
       return SHIP_CATEGORIES.find(category => category.matches(Number(ship.shipTypeId)));
     },
@@ -629,6 +636,13 @@ export default {
           <path d="M10 1 L10 13 L4 13 Z" fill="${color}"/><path d="M5 15 L15 15 L13 18 L7 18 Z" fill="${color}"/></g>`;
         return L.divIcon({ className: 'map-ship', html: `<svg viewBox="0 0 20 20" width="26" height="26">${shape}</svg>`,
           iconSize: [26, 26], iconAnchor: [13, 13] });
+      } else if (this.isBlueBoat(ship)) {
+        // Two hulls seen from above, pointing where it heads
+        shape = `<g transform="rotate(${heading || 0} 10 10)" fill="${color}" stroke="#1d2329" stroke-width="1">
+          <rect x="4" y="2.5" width="3.6" height="15" rx="1.8"/><rect x="12.4" y="2.5" width="3.6" height="15" rx="1.8"/>
+          <rect x="6" y="8" width="8" height="4" fill="#1d2329"/></g>`;
+        return L.divIcon({ className: 'map-ship', html: `<svg viewBox="0 0 20 20" width="24" height="24">${shape}</svg>`,
+          iconSize: [24, 24], iconAnchor: [12, 12] });
       } else if (String(ship.MMSI).startsWith('99')) {
         shape = `<path d="M10 3 L17 10 L10 17 L3 10 Z" fill="${color}" stroke="white" stroke-width="1.5"/>`;
       } else if (ship.sog >= 0.5 && heading != undefined) {
@@ -678,14 +692,34 @@ export default {
       if (heading != undefined) rows.push([t("Heading"),
         `${heading.toFixed(0)}° <i class="map-card-arrow" style="transform: rotate(${heading}deg)">&#8593;</i>`]);
       if (ship.length > 0 && ship.beam > 0) rows.push([t("Size"), `${ship.length} × ${ship.beam} m`]);
-      if (!this.isPati(ship)) rows.push(['MMSI', ship.MMSI]);
+      if (!this.isPati(ship) && !this.isBlueBoat(ship)) rows.push(['MMSI', ship.MMSI]);
+      const telemetry = ship.telemetry || {};
+      if (telemetry.battery != undefined) rows.push([t("Battery"), `${telemetry.battery.toFixed(1)} V`]);
+      if (telemetry.lorawan_temp != undefined) rows.push([t("Temperature inside"), `${telemetry.lorawan_temp.toFixed(1)} ºC`]);
       const minutes = (Date.now() - new Date(ship.lastTmst).getTime()) / 60000;
       return `<div class="map-card">
         <div class="map-card-title">${ship.shipName}</div>
         <div class="map-card-date"><span class="map-ship-dot" style="background: ${category.color}"></span>${t(category.label)}
           · ${this.formatTimeAgo(minutes)}</div>
         <table class="map-card-table">${rows.map(([name, value]) => `<tr><td>${name}</td><td>${value}</td></tr>`).join('')}</table>
+        ${this.isBlueBoat(ship) ? this.fleetFooterHTML() : ''}
       </div>`;
+    },
+    // Under a BlueBoat's card: who it is, and the link to the BlueLab's fleet tracker while it answers.
+    // If it stops answering (it runs on a lab computer), the link gives way to a note
+    fleetFooterHTML() {
+      const t = (key) => this.$i18n.t(key);
+      const fleet = window.AISManager?.fleet;
+      const link = fleet?.up && fleet.url
+        ? `<a class="map-card-link" href="${fleet.url}" target="_blank" rel="noopener">${t("See on the fleet tracker")} &#8599;</a>`
+        : `<div class="map-card-note">${t("The fleet tracker is not available now")}</div>`;
+      return `<div class="map-card-note">${t("BlueLab (ICM-CSIC) autonomous vehicle")}</div>${link}`;
+    },
+    // When the fleet tracker starts or stops answering: the open cards, current
+    updateShipCards() {
+      Object.values(this.ships).forEach(({ marker }) => {
+        if (marker.isPopupOpen()) marker.getPopup().update();
+      });
     },
     // Same steps as WindSection.formatTimeAgo, in minutes
     formatTimeAgo(minutes) {
@@ -877,6 +911,16 @@ export default {
   font-weight: 600;
   white-space: nowrap;
   padding-left: 10px;
+}
+.map-card-note {
+  font-size: 0.68rem;
+  opacity: 0.75;
+  margin-bottom: 4px;
+}
+.map-card-link {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--blue);
 }
 .map-card-arrow {
   display: inline-block;
