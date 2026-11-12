@@ -70,7 +70,9 @@ BLUEBOAT_TYPE = 0  # Not available: the app knows them by their MMSI
 clients = set()
 history = []  # (received at, message)
 pati_static = {}  # MMSI -> its ShipStaticData message, sent to every new client (patís and BlueBoats)
-fleet = {'up': None, 'url': None}  # Whether the BlueLab's tracker answers, and its address
+# Whether the BlueLab's tracker answers, its address, and its vehicles with their last data (for the
+# app's list of our equipment, which shows those not out too)
+fleet = {'up': None, 'url': None, 'devices': []}
 fleet_last = {}  # BlueBoat device -> (time, lat, lon) of its last position, for its speed
 
 
@@ -221,6 +223,14 @@ def set_fleet_up(up):
     websockets.broadcast(clients, json.dumps({'fleet': fleet}))
 
 
+def set_fleet_devices(devices):
+    """Tells the apps when the list of vehicles, or their last data, changes"""
+    if fleet['devices'] == devices:
+        return
+    fleet['devices'] = devices
+    websockets.broadcast(clients, json.dumps({'fleet': fleet}))
+
+
 def fleet_report(device_id, timestamp, data, settings):
     """Relays a BlueBoat's record (the tracker's fields) as AIS messages, if it is recent"""
     _, hours, exclude, names = settings
@@ -261,14 +271,21 @@ async def fleet_poll(settings):
     while True:
         try:
             devices = await asyncio.to_thread(fleet_get, f'{url}/api/devices')
+            _, _, _, names = settings
+            listed = []
             for device in devices:
                 device_id = device.get('device_id') or ''
                 seen = parse_time(device.get('last_seen'))
-                if device_id.startswith(exclude) or seen is None or seen < time.time() - hours * 3600:
+                if device_id.startswith(exclude) or seen is None:
+                    continue
+                listed.append({'id': f'BLUEBOAT-{device_id}', 'name': names.get(device_id, f'BlueBoat {device_id}'),
+                               'last_seen': datetime.fromtimestamp(seen, timezone.utc).isoformat()})
+                if seen < time.time() - hours * 3600:
                     continue
                 records = await asyncio.to_thread(fleet_get, f'{url}/api/trajectory/{quote(device_id)}?limit=2')
                 for record in records:
                     fleet_report(device_id, record.get('timestamp'), record, settings)
+            set_fleet_devices(listed)
             set_fleet_up(True)
         except (OSError, ValueError, TypeError, AttributeError) as error:
             print('❌ BlueLab fleet tracker:', error)
