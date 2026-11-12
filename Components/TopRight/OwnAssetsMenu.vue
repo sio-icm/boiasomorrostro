@@ -78,7 +78,8 @@ export default {
         else groups.push(this.vehiclesGroup(asset));
       }
       this.groups = groups;
-      this.liveCount = groups.flatMap(group => group.items).filter(item => item.live).length;
+      // The simulated ones (always out) don't count
+      this.liveCount = groups.flatMap(group => group.items).filter(item => item.live && !item.simulated).length;
     },
     // The buoy: always in the scene, so always there to go to; live with recent data
     async buoyGroup(asset) {
@@ -98,7 +99,7 @@ export default {
       const items = {};
       ships.forEach(ship => {
         const live = isLive(ship);
-        items[ship.MMSI] = { id: ship.MMSI, name: ship.shipName, live, clickable: live, last: new Date(ship.lastTmst) };
+        items[ship.MMSI] = { id: ship.MMSI, name: ship.shipName, live, clickable: live, last: new Date(ship.lastTmst), simulated: ship.simulated };
       });
       const fleet = window.AISManager?.fleet;
       if (asset.prefix === 'BLUEBOAT-') {
@@ -107,7 +108,8 @@ export default {
         });
       }
       const list = Object.values(items).sort((a, b) => b.live - a.live || b.last - a.last);
-      list.forEach(item => item.status = item.live ? this.$t('Transmitting') + ' · ' + this.timeAgo((Date.now() - item.last) / 60000)
+      list.forEach(item => item.status = item.simulated ? this.$t('Simulated') + ' · ' + this.$t('Transmitting').toLowerCase()
+        : item.live ? this.$t('Transmitting') + ' · ' + this.timeAgo((Date.now() - item.last) / 60000)
         : isNaN(item.last) ? this.$t('Not transmitting') : `${this.$t('Not transmitting')} · ${this.$t('last data')} ${this.timeAgo((Date.now() - item.last) / 60000).toLowerCase()}`);
       let note;
       if (asset.prefix === 'BLUEBOAT-' && fleet?.up === false) note = this.$t('The fleet tracker is not available now');

@@ -714,11 +714,12 @@ export default {
       const minutes = (Date.now() - new Date(ship.lastTmst).getTime()) / 60000;
       return `<div class="map-card">
         <div class="map-card-title">${ship.shipName}</div>
-        ${window.OwnAssets.ownGroupOf(ship.MMSI) ? this.ownTagHTML(window.OwnAssets.ownGroupOf(ship.MMSI).owner) : ''}
+        ${ship.simulated ? `<div class="map-own-tag map-simulated-tag">${t("Simulated")}</div>`
+          : window.OwnAssets.ownGroupOf(ship.MMSI) ? this.ownTagHTML(window.OwnAssets.ownGroupOf(ship.MMSI).owner) : ''}
         <div class="map-card-date"><span class="map-ship-dot" style="background: ${category.color}"></span>${t(category.label)}
           · ${this.formatTimeAgo(minutes)}</div>
         <table class="map-card-table">${rows.map(([name, value]) => `<tr><td>${name}</td><td>${value}</td></tr>`).join('')}</table>
-        ${this.isBlueBoat(ship) ? this.fleetFooterHTML() : ''}
+        ${this.isBlueBoat(ship) && !ship.simulated ? this.fleetFooterHTML() : ''}
       </div>`;
     },
     // Under a BlueBoat's card: the link to the BlueLab's fleet tracker while it answers.
@@ -905,6 +906,9 @@ export default {
   width: 34px;
   height: 34px;
   margin: -17px 0 0 -17px;
+}
+.map-simulated-tag {
+  background: #e0a21b !important;
 }
 .map-own-tag {
   display: inline-block;

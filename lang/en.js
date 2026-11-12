@@ -143,6 +143,7 @@ export default en = {
   "Sailing dinghy": "Sailing catamaran",
   "Our equipment": "Our equipment",
   "Own equipment": "Own equipment",
+  "Simulated": "Simulated",
   "BlueBoats": "BlueBoats",
   "Sailing dinghies": "Sailing dinghies",
   "No data since": "No data since",

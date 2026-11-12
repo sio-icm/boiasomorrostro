@@ -145,6 +145,7 @@ export default es = {
   "Sailing dinghy": "Patí de vela",
   "Our equipment": "Nuestros equipos",
   "Own equipment": "Equipo propio",
+  "Simulated": "Simulado",
   "BlueBoats": "BlueBoats",
   "Sailing dinghies": "Patines de vela",
   "No data since": "Sin datos desde el",

@@ -182,6 +182,8 @@ export class AISManager {
     this.ships[MMSI].typeOfMessages = typeOfMessages;
     // A BlueBoat's battery and temperatures (see boia_server.py)
     if (metaData.Telemetry) this.ships[MMSI].telemetry = metaData.Telemetry;
+    // Simulated boats, to show the app (see boia_server.py, SIMULATED_BOATS)
+    if (metaData.Simulated) this.ships[MMSI].simulated = true;
 
 
     // Emit event to update ship data

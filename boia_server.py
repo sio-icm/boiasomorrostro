@@ -28,6 +28,9 @@ fleet tracker (FLEET_URL in .env, https://github.com/BlueLab-ICM/dashboard-publi
 relayed the same way, as MMSI "BLUEBOAT-<id>" with their telemetry. Whether the tracker answers is
 sent to the apps as {"fleet": {"up": ..., "url": ...}}, so they don't link to it while it is down.
 
+And, with SIMULATED_BOATS=1, a simulated BlueBoat and patí always sailing near the buoy, to show
+the app when none of ours is out. They are marked as simulated, for the app to say so.
+
 Usage: python3 boia_server.py [port] [http port]   (default 8766 for the AIS WebSocket and 8767
 for the proxy and the patí positions; see Assets/Scripts/config.js)
 Requires the websockets package (pip install websockets).
@@ -231,7 +234,7 @@ def set_fleet_devices(devices):
     websockets.broadcast(clients, json.dumps({'fleet': fleet}))
 
 
-def fleet_report(device_id, timestamp, data, settings):
+def fleet_report(device_id, timestamp, data, settings, simulated=False):
     """Relays a BlueBoat's record (the tracker's fields) as AIS messages, if it is recent"""
     _, hours, exclude, names = settings
     lat, lon, when = data.get('frontseat_lat'), data.get('frontseat_lon'), parse_time(timestamp)
@@ -257,6 +260,8 @@ def fleet_report(device_id, timestamp, data, settings):
     metadata = {'MMSI_String': mmsi, 'ShipName': names.get(device_id, f'BlueBoat {device_id}'), 'latitude': lat,
                 'longitude': lon, 'time_utc': datetime.fromtimestamp(when, timezone.utc).isoformat(),
                 'Telemetry': telemetry}
+    if simulated:
+        metadata['Simulated'] = True
     if mmsi not in pati_static:
         pati_static[mmsi] = {'MessageType': 'ShipStaticData', 'MetaData': metadata,
                              'Message': {'ShipStaticData': {'Type': BLUEBOAT_TYPE, 'Dimension': BLUEBOAT_DIMENSION}}}
@@ -316,6 +321,47 @@ async def fleet_stream(settings):
         await asyncio.sleep(60)
 
 
+# SIMULATED BOATS (SIMULATED_BOATS=1): a BlueBoat and a patí always out, to show the app
+# A patí's loop from the Somorrostro beach, passing ~300 m west of the buoy (as tools/simulate_pati.py)
+SIM_PATI_ROUTE = [(41.3790, 2.2110), (41.3757, 2.2125), (41.3722, 2.2050), (41.3770, 2.1985), (41.3835, 2.2010)]
+# A BlueBoat's survey south-west of the buoy: parallel passes 60 m apart, back and forth
+SIM_BLUEBOAT_ROUTE = [(41.3735 - i * 0.00054, lon) for i in range(5)
+                      for lon in ((2.2100, 2.2150) if i % 2 == 0 else (2.2150, 2.2100))]
+
+
+def route(waypoints, knots, every):
+    """(lat, lon, bearing) along a closed route, one every `every` seconds at `knots`, forever"""
+    step = knots * 0.514444 * every  # m
+    while True:
+        for (lat0, lon0), (lat1, lon1) in zip(waypoints, waypoints[1:] + waypoints[:1]):
+            north = (lat1 - lat0) * 111320
+            east = (lon1 - lon0) * 111320 * math.cos(math.radians(lat0))
+            length = math.hypot(north, east)
+            bearing = math.degrees(math.atan2(east, north)) % 360
+            for i in range(max(1, int(length / step))):
+                f = i * step / length
+                yield lat0 + (lat1 - lat0) * f, lon0 + (lon1 - lon0) * f, bearing
+
+
+async def simulate_pati():
+    for lat, lon, bearing in route(SIM_PATI_ROUTE, 5, 2):
+        publish_pati('simulat', 'Patí (simulat)', lat, lon, 5, round(bearing), datetime.now(timezone.utc).isoformat(),
+                     simulated=True)
+        await asyncio.sleep(2)
+
+
+async def simulate_blueboat():
+    """As the BlueLab's tracker would send it, every 10 s (theirs, about every minute)"""
+    settings = (None, 1, (), {'simulat': 'BlueBoat (simulat)'})
+    start = time.time()
+    for lat, lon, bearing in route(SIM_BLUEBOAT_ROUTE, 2, 10):
+        hours = (time.time() - start) / 3600
+        data = {'frontseat_lat': lat, 'frontseat_lon': lon, 'frontseat_heading': bearing or 360,
+                'battery': round(16.4 - (hours % 6) * 0.25, 2), 'lorawan_temp': 36.5}
+        fleet_report('simulat', datetime.now(timezone.utc).isoformat(), data, settings, simulated=True)
+        await asyncio.sleep(10)
+
+
 # ERDDAP PROXY
 def fetch_upstream(url):
     """(status, content type, body) of an allowed ERDDAP URL, cached for a minute"""
@@ -369,6 +415,20 @@ async def http_handler(reader, writer, devices, origins):
     writer.close()
 
 
+def publish_pati(device_id, name, lat, lon, speed, bearing, when, simulated=False):
+    """Relays a patí's position as AIS messages: its static data the first time"""
+    mmsi = f'PATI-{device_id}'
+    metadata = {'MMSI_String': mmsi, 'ShipName': name, 'latitude': lat, 'longitude': lon, 'time_utc': when}
+    if simulated:
+        metadata['Simulated'] = True
+    if mmsi not in pati_static:
+        pati_static[mmsi] = {'MessageType': 'ShipStaticData', 'MetaData': metadata,
+                             'Message': {'ShipStaticData': {'Type': PATI_TYPE, 'Dimension': PATI_DIMENSION}}}
+        publish(pati_static[mmsi])
+    publish({'MessageType': 'PositionReport', 'MetaData': metadata,
+             'Message': {'PositionReport': {'TrueHeading': bearing, 'Sog': round(speed, 1)}}})
+
+
 def pati_report(path, body, devices):
     """Relays a phone's position as AIS messages; returns the HTTP status"""
     try:
@@ -376,14 +436,7 @@ def pati_report(path, body, devices):
         if device_id not in devices:
             print(f'⛔ Patí: unknown device {device_id!r}')
             return '403 Forbidden'
-        mmsi = f'PATI-{device_id}'
-        metadata = {'MMSI_String': mmsi, 'ShipName': devices[device_id], 'latitude': lat, 'longitude': lon, 'time_utc': when}
-        if mmsi not in pati_static:
-            pati_static[mmsi] = {'MessageType': 'ShipStaticData', 'MetaData': metadata,
-                                 'Message': {'ShipStaticData': {'Type': PATI_TYPE, 'Dimension': PATI_DIMENSION}}}
-            publish(pati_static[mmsi])
-        publish({'MessageType': 'PositionReport', 'MetaData': metadata,
-                 'Message': {'PositionReport': {'TrueHeading': bearing, 'Sog': round(speed, 1)}}})
+        publish_pati(device_id, devices[device_id], lat, lon, speed, bearing, when)
         return '200 OK'
     except (ValueError, KeyError, IndexError):
         return '400 Bad Request'
@@ -422,6 +475,10 @@ async def main(port, http_port):
             print('BlueLab fleet tracker:', fleet['url'])
             asyncio.create_task(fleet_poll(fleet_settings))
             asyncio.create_task(fleet_stream(fleet_settings))
+        if (read_env('SIMULATED_BOATS') or '').lower() in ('1', 'true', 'yes'):
+            print('Simulated BlueBoat and patí out')
+            asyncio.create_task(simulate_pati())
+            asyncio.create_task(simulate_blueboat())
         await upstream(api_key)
 
 
