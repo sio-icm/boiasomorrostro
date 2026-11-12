@@ -8,6 +8,8 @@ export class AISManager {
   ships = {}; // Dictionary to store ship objects
   isCreated = false;
   bboxes = [];
+  // The BlueLab's fleet tracker, from boia_server.py: {up, url}; up false while it doesn't answer
+  fleet = undefined;
 
   constructor() {
 
@@ -63,6 +65,12 @@ export class AISManager {
       if (data.bboxes) {
         this.bboxes = data.bboxes;
         window.eventBus.emit('AISManager_bboxes', data.bboxes);
+      }
+
+      // Whether the BlueLab's fleet tracker answers (see boia_server.py)
+      if (data.fleet) {
+        this.fleet = data.fleet;
+        window.eventBus.emit('AISManager_fleet', data.fleet);
       }
 
       // Message history
@@ -172,6 +180,8 @@ export class AISManager {
       this.ships[MMSI].lastTmst = metaData.time_utc;
     }
     this.ships[MMSI].typeOfMessages = typeOfMessages;
+    // A BlueBoat's battery and temperatures (see boia_server.py)
+    if (metaData.Telemetry) this.ships[MMSI].telemetry = metaData.Telemetry;
 
 
     // Emit event to update ship data
