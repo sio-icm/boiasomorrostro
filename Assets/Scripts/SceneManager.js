@@ -556,13 +556,15 @@ class SceneManager{
     this.followed = undefined;
     this.flight = undefined;
   }
-  // Where the camera goes for the followed vessel: behind it, further for bigger ships
+  // Where the camera goes for the followed vessel: behind it, further for bigger ships, and closer
+  // for the smallest (a BlueBoat is 1.2 m long)
   followView = function(){
     const root = this.followed.root;
-    const distance = Math.max(16, (window.AISManager?.ships[this.followedMMSI]?.length || 0) * 2.5);
+    const length = window.AISManager?.ships[this.followedMMSI]?.length || 0;
+    const distance = length > 0 && length < 2 ? 6 : Math.max(16, length * 2.5);
     const behind = new THREE.Vector3(-Math.cos(root.rotation.y), 0, Math.sin(root.rotation.y)).multiplyScalar(distance);
     return {
-      target: root.position.clone().add(new THREE.Vector3(0, 2, 0)),
+      target: root.position.clone().add(new THREE.Vector3(0, Math.min(2, distance * 0.12), 0)),
       camera: root.position.clone().add(behind).add(new THREE.Vector3(0, distance * 0.4, 0)),
     };
   }
