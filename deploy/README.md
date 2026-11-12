@@ -39,6 +39,27 @@ Ojo: el `websockets` de Ubuntu 22.04 (9.1) es demasiado antiguo; por eso el `ven
 En su `.env`, además de la clave y `BOIA_ORIGINS`: `BOIA_HTTP_HOST=127.0.0.1` (el puerto 8767 solo
 se usa a través de nginx) y sin `PATI_SIMULATOR`, para que nadie pueda enviar un patí falso.
 
+### Vehículos del BlueLab (BlueBoat)
+
+`boia_server.py` lee el tracker público de la flota del BlueLab
+([BlueLab-ICM/dashboard-public](https://github.com/BlueLab-ICM/dashboard-public)), en `FLEET_URL`
+del `.env`, y reenvía sus vehículos como el patí. Solo salen los vistos en las últimas
+`FLEET_MAX_HOURS` (6 por defecto), es decir, cuando están en campaña, y nunca sus simulados (`sim-`).
+
+**Si el tracker deja de funcionar** (funciona desde un ordenador del laboratorio, publicado con
+Tailscale Funnel), no se rompe nada:
+- el servidor lo reintenta solo: su WebSocket cada minuto y la lista de vehículos cada 5 min;
+- en la web, los vehículos desaparecen al cabo de 30 min sin datos;
+- la ficha de un vehículo cambia el enlace al panel por el aviso «El panel de la flota no está
+  disponible ahora».
+
+En el registro del servicio sale `❌ BlueLab fleet tracker not answering` (`journalctl -u
+boiasomorrostro`). Qué hacer:
+- **si ha cambiado de dirección**, poner la nueva en `FLEET_URL` y reiniciar el servicio;
+- **si ya no existe o no se quiere**, dejar `FLEET_URL` vacía y reiniciar: se desactiva del todo;
+- **si ha cambiado su formato** (su API está en desarrollo), adaptar la parte «BLUELAB'S FLEET» de
+  `boia_server.py`, la única que depende de él.
+
 ## En otro servidor
 
 La web es estática (GitHub Pages, por ejemplo), pero necesita un pequeño servidor para lo que el
