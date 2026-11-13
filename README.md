@@ -27,11 +27,12 @@ The app expects to be served from `/boiasomorrostro/`, so serve the parent folde
 python3 dev_server.py 8765
 ```
 
-and open http://localhost:8765/boiasomorrostro/. `dev_server.py` also proxies the ERDDAP
-requests, which the servers don't allow from localhost.
+and open http://localhost:8765/boiasomorrostro/.
 
 ICATMAR's services only accept its own website, so `boia_server.py` stands in for them: an
-ERDDAP proxy and the AIS feed. Locally the ships come from
+ERDDAP proxy (on port 8767) and the AIS feed. The proxy answers the buoys' data from a local copy
+it keeps up to date (`erddap_mirror.py`, in `erddap_mirror.sqlite`), so the app keeps them while an
+ERDDAP fails. Locally the ships come from
 [aisstream.io](https://aisstream.io) (free, needs an API key) through `boia_server.py`. Put the key
 in a `.env` file (not in git) as `AISSTREAM_API_KEY=...`, then:
 
