@@ -1099,24 +1099,25 @@ export default {
   stroke-dasharray: 2 3;
 }
 /* PATÍ CIENTÍFIC: its stations, and the profile on their cards */
+/* Past data (a project or campaign): hollow, with a dashed edge, unlike what is out there now */
 .map-profile-station {
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #12a39a;
-  border: 2px solid white;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px dashed #12a39a;
   box-sizing: border-box;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 .map-profile-station span {
-  color: white;
+  color: #0e7f78;
   font-size: 0.65rem;
   font-weight: 700;
   text-shadow: none;
 }
 .map-profile-station.minor {
-  border-width: 1.5px;
+  border: 1.5px solid #12a39a;
   opacity: 0.85;
 }
 .map-profile-source {
