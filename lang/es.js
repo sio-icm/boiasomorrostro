@@ -200,7 +200,15 @@ export default es = {
   "From Somorrostro": "Desde Somorrostro",
   "Show or hide legend": "Mostrar u ocultar la leyenda",
   "Centre on the buoy": "Centrar en la boya",
-  "Ships": "Barcos",
+  "Ships": "Barcos y vehículos",
+  // Headings of the map's layer list
+  mapLayers: {
+    now: "Ahora",
+    forecast: "Predicción",
+    chart: "Cartografía",
+    projects: "Proyectos y campañas",
+  },
+
   "Cargo": "Carga",
   "Tanker": "Petrolero",
   "Passenger": "Pasaje",
