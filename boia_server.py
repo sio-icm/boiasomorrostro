@@ -28,8 +28,9 @@ fleet tracker (FLEET_URL in .env, https://github.com/BlueLab-ICM/dashboard-publi
 relayed the same way, as MMSI "BLUEBOAT-<id>" with their telemetry. Whether the tracker answers is
 sent to the apps as {"fleet": {"up": ..., "url": ...}}, so they don't link to it while it is down.
 
-And, with SIMULATED_BOATS=1, a simulated BlueBoat and patí always sailing near the buoy, to show
-the app when none of ours is out. They are marked as simulated, for the app to say so.
+And, with SIMULATED_BOATS, a simulated BlueBoat and/or patí always sailing near the buoy, to show
+the app when none of ours is out ("blueboat", "pati", comma separated; 1 for both). They are marked
+as simulated, for the app to say so.
 
 Usage: python3 boia_server.py [port] [http port]   (default 8766 for the AIS WebSocket and 8767
 for the proxy and the patí positions; see Assets/Scripts/config.js)
@@ -321,7 +322,19 @@ async def fleet_stream(settings):
         await asyncio.sleep(60)
 
 
-# SIMULATED BOATS (SIMULATED_BOATS=1): a BlueBoat and a patí always out, to show the app
+# SIMULATED BOATS (SIMULATED_BOATS): a BlueBoat and/or a patí always out, to show the app
+SIMULATORS = ('blueboat', 'pati')
+
+
+def read_simulated_boats():
+    """Which simulated boats are out, from SIMULATED_BOATS: "blueboat", "pati" (comma separated),
+    or 1/true/yes for both"""
+    value = (read_env('SIMULATED_BOATS') or '').lower().replace(' ', '')
+    if value in ('1', 'true', 'yes'):
+        return list(SIMULATORS)
+    return [name for name in value.split(',') if name in SIMULATORS]
+
+
 # A patí's loop from the Somorrostro beach, passing ~300 m west of the buoy (as tools/simulate_pati.py)
 SIM_PATI_ROUTE = [(41.3790, 2.2110), (41.3757, 2.2125), (41.3722, 2.2050), (41.3770, 2.1985), (41.3835, 2.2010)]
 # A BlueBoat's survey south-west of the buoy: parallel passes 60 m apart, back and forth
@@ -475,9 +488,12 @@ async def main(port, http_port):
             print('BlueLab fleet tracker:', fleet['url'])
             asyncio.create_task(fleet_poll(fleet_settings))
             asyncio.create_task(fleet_stream(fleet_settings))
-        if (read_env('SIMULATED_BOATS') or '').lower() in ('1', 'true', 'yes'):
-            print('Simulated BlueBoat and patí out')
+        simulated = read_simulated_boats()
+        if simulated:
+            print('Simulated boats out:', ', '.join(simulated))
+        if 'pati' in simulated:
             asyncio.create_task(simulate_pati())
+        if 'blueboat' in simulated:
             asyncio.create_task(simulate_blueboat())
         await upstream(api_key)
 
