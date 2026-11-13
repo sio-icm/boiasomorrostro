@@ -628,6 +628,13 @@ export default {
       element.querySelector('.map-profile-select')?.addEventListener('change', (e) => select(e, Number(e.target.value)));
       element.querySelector('.map-profile-prev')?.addEventListener('click', (e) => select(e, station.selected - 1));
       element.querySelector('.map-profile-next')?.addEventListener('click', (e) => select(e, station.selected + 1));
+      // The station's water column over the year, in the history section (see WaterColumnChart)
+      element.querySelector('.map-profile-year')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.$gui.waterColumnStation = station.id;
+        this.$gui.selectedSection = 'history';
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+      });
     },
     profileCardHTML(station) {
       const t = (key) => this.$i18n.t(key);
@@ -655,6 +662,7 @@ export default {
           <tr><td>${t("Bottom")} (${profile.depth[last].toFixed(0)} m)</td><td>${profile.temperature[last].toFixed(1)} ºC</td></tr>
         </table>
         <div class="map-card-note">${profiles.length} ${t("profiles")} · ${profiles[0].date.slice(0, 4)}–${profiles[profiles.length - 1].date.slice(2, 4)} · ICM-CSIC</div>
+        ${station.id != null ? `<button class="map-card-button map-profile-year">${t("Over the year")}</button>` : ''}
         <a class="map-card-link" href="${profile.doi}" target="_blank" rel="noopener">${t("Data on Zenodo")} &#8599;</a>
       </div>`;
     },

@@ -159,6 +159,7 @@ export default en = {
   "Bottom": "Bottom",
   "profiles": "profiles",
   "Data on Zenodo": "Data on Zenodo",
+  "Over the year": "Over the year",
   "Previous": "Previous",
   "Next": "Next",
   "Temperature by depth": "Sea temperature by depth",
@@ -169,6 +170,10 @@ export default en = {
   "The fleet tracker is not available now": "The fleet tracker is not available now",
   "History": "History",
   history: {
+    pati: "Patí Científic 2021–22",
+    station: "Station",
+    depth: "Depth",
+    waterColumnNote: "Sea temperature by depth in each of the Patí Científic's (ICM-CSIC) profiles at this station. Each vertical band is a profile; blank, weeks without measurements. The stations are on the map.",
     days7: "7 days",
     days30: "30 days",
     all: "All",

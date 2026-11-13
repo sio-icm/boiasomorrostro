@@ -161,6 +161,7 @@ export default es = {
   "Bottom": "Fondo",
   "profiles": "perfiles",
   "Data on Zenodo": "Datos en Zenodo",
+  "Over the year": "Evolución del año",
   "Previous": "Anterior",
   "Next": "Siguiente",
   "Temperature by depth": "Temperatura del mar según la profundidad",
@@ -171,6 +172,10 @@ export default es = {
   "The fleet tracker is not available now": "El panel de la flota no está disponible ahora",
   "History": "Histórico",
   history: {
+    pati: "Patí Científic 2021–22",
+    station: "Estación",
+    depth: "Profundidad",
+    waterColumnNote: "Temperatura del mar según la profundidad en cada perfil del Patí Científic (ICM-CSIC) en esta estación. Cada franja vertical es un perfil; en blanco, semanas sin medidas. Las estaciones están en el mapa.",
     days7: "7 días",
     days30: "30 días",
     all: "Todo",
