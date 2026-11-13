@@ -507,7 +507,7 @@ class SceneManager{
     this.windStreaks?.update(dt, this.controls.target, this.windDirection, this.windSpeed, this.skyDaylight, this.renderer, this.camera);
 
     // Vessels (the patí sails between reports and rides the waves), hidden in the Patí Científic
-    // mode: they are now, the columns of 2021-22 (see setPatiDate)
+    // mode: they are now, the columns of 2021-22 (see setPati)
     if (this.patiDate) {
       Object.values(this.aisVesselsManager.ships).forEach(ship => {
         if (ship.root) ship.root.visible = false;
@@ -630,15 +630,16 @@ class SceneManager{
 
   // PATÍ CIENTÍFIC MODE (see GUIManager.patiDate)
   // Its water columns of a date of 2021-22 ('YYYY-MM-DD') at its stations, under that day's
-  // midday sky, instead of the vessels of now. The first time, the camera flies to see them all
-  // from the south, the city behind. undefined: back to now and to the buoy
-  setPatiDate = async function(date){
+  // midday sky, instead of the vessels of now. The camera dives next to the station given (its
+  // number) to look down along its column, the first time and whenever the station changes.
+  // undefined: back to now and to the buoy
+  setPati = async function(date, station){
     this.patiDate = date;
     if (!date) {
       this.waterColumns?.show(false);
       Object.values(this.aisVesselsManager.ships).forEach(ship => { if (ship.root) ship.root.visible = true; });
-      if (this.patiShown) this.focusOnBuoy();
-      this.patiShown = false;
+      if (this.patiStation != undefined) this.focusOnBuoy();
+      this.patiStation = undefined;
       return;
     }
     this.waterColumns ??= new WaterColumnsEntity(this.scene, this.LATITUDE, this.LONGITUDE);
@@ -647,14 +648,19 @@ class SceneManager{
     if (this.patiDate !== date) return; // Changed meanwhile
     this.waterColumns.show(true);
     this.setSkyTime(new Date(date + 'T10:00:00Z'));
-    if (!this.patiShown) {
-      this.patiShown = true;
-      // From farther on a narrow screen (a phone upright), to see them all from side to side
-      const centre = this.waterColumns.centre();
-      const halfWidth = Math.tan(this.camera.fov * Math.PI / 360) * this.camera.aspect;
-      const distance = Math.max(1, 1400 / halfWidth / 2200);
-      this.flyTo(centre.clone().add(new THREE.Vector3(100, 600, 2200).multiplyScalar(distance)), centre.clone().add(new THREE.Vector3(50, -100, 0)));
+    if (station !== this.patiStation) {
+      this.patiStation = this.waterColumns.active = station;
+      this.diveTo(station);
     }
+  }
+  // Just under the surface, from the south-east of a station's column and as far as it is deep,
+  // looking down along it to the bottom. From farther on a narrow screen (a phone upright)
+  diveTo = function(id){
+    const station = this.waterColumns.stationAt(id);
+    if (!station) return;
+    const { position, depth } = station;
+    const distance = (10 + depth) * Math.max(1, 0.9 / this.camera.aspect);
+    this.flyTo(position.clone().add(new THREE.Vector3(distance * 0.6, -2, distance * 0.8)), position.clone().add(new THREE.Vector3(0, -depth * 0.6, 0)));
   }
   setLocale = function(locale){
     this.locale = locale;
