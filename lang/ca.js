@@ -177,7 +177,6 @@ export default ca = {
     previous: "Campanya anterior",
     next: "Campanya següent",
     date: "Data de la campanya",
-    hint: "Toca una estació per veure'n l'any",
     inThreeD: "Veure en 3D",
   },
   history: {

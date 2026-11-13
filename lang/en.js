@@ -176,7 +176,6 @@ export default en = {
     previous: "Previous campaign",
     next: "Next campaign",
     date: "Campaign date",
-    hint: "Tap a station to see its year",
     inThreeD: "See in 3D",
   },
   history: {

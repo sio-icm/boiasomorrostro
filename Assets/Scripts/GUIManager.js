@@ -55,6 +55,13 @@ class GUIManager {
     window.eventBus.emit('GUIManager_patiChanged', date);
   }
   get patiMode() { return this._patiDate != undefined; }
+  // The station whose column the camera is beside (its number): 6, the one by the buoy, at first
+  _patiStation = 6;
+  get patiStation() { return this._patiStation; }
+  set patiStation(id) {
+    this._patiStation = id;
+    window.eventBus.emit('GUIManager_patiChanged', this._patiDate);
+  }
   // The dates of its profiles at its regular stations, sorted, and the one to start with: the
   // day most stations were measured and, of those, the most layered (warm on top, cold below)
   loadPati() {

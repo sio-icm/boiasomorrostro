@@ -15,7 +15,15 @@
         <span class="pati-scale" :style="{ background: gradient }"></span>
         <span>{{ warmest }} ºC</span>
       </div>
-      <div class="pati-hint">{{ $t('pati3d.hint') }}</div>
+      <!-- The station the camera is beside, and its year in the history section -->
+      <div class="pati-stations">
+        <span>{{ $t('history.station') }}</span>
+        <span class="pati-station-buttons">
+          <button v-for="id in stations" :key="id" class="clickable" :class="{ selected: id === $gui.patiStation }"
+            @click="$gui.patiStation = id">{{ id }}</button>
+        </span>
+        <button class="pati-year clickable" @click="openYear">{{ $t('Over the year') }}</button>
+      </div>
     </div>
     <button class="time-step clickable" @click="step(1)" :disabled="index >= dates.length - 1" :title="$t('pati3d.next')">&#8250;</button>
     <button class="time-now clickable" @click="$gui.patiDate = undefined" :title="$t('pati3d.exitTitle')">{{ $t('Now') }}</button>
@@ -30,7 +38,7 @@ const COLORS = ['#2c3e9e', '#2f7fb5', '#1fa3a3', '#7cc47f', '#e8d24a', '#ef7d3c'
 export default {
   name: 'PatiTimeControl',
   data() {
-    return { dates: [], shown: undefined, coldest: 11, warmest: 27, gradient: `linear-gradient(to right, ${COLORS.join(', ')})` };
+    return { dates: [], stations: [1, 2, 3, 4, 5, 6], shown: undefined, coldest: 11, warmest: 27, gradient: `linear-gradient(to right, ${COLORS.join(', ')})` };
   },
   async mounted() {
     this.dates = (await this.$gui.loadPati()).dates;
@@ -52,6 +60,13 @@ export default {
     },
   },
   methods: {
+    // The station's water column over the year (see WaterColumnChart)
+    openYear() {
+      this.$gui.waterColumnStation = this.$gui.patiStation;
+      this.$gui.selectedSection = 'history';
+      if (this.$gui.panelState === 'hidden') this.$gui.panelState = 'compact';
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    },
     step(n) {
       const index = Math.max(0, Math.min(this.dates.length - 1, this.index + n));
       this.$gui.patiDate = this.dates[index];
@@ -101,7 +116,7 @@ export default {
   gap: 8px;
   font-size: 0.8rem;
 }
-.time-label b, .time-label span, .pati-legend span, .pati-hint {
+.time-label b, .time-label span, .pati-legend span {
   color: white;
 }
 .time-label b {
@@ -131,11 +146,39 @@ export default {
   height: 7px;
   border-radius: 4px;
 }
-.pati-hint {
-  font-size: 0.62rem;
-  opacity: 0.75;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.pati-stations {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.65rem;
+}
+.pati-stations > span:first-child {
+  color: white;
+  margin-right: 2px;
+}
+.pati-station-buttons {
+  display: flex;
+  gap: 4px;
+}
+.pati-stations button {
+  min-width: 22px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  background: transparent;
+  color: white;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+.pati-stations button.selected {
+  background: #12a39a;
+  border-color: #12a39a;
+}
+.pati-stations .pati-year {
+  margin-left: auto;
   white-space: nowrap;
 }
 .time-step {
