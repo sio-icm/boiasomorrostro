@@ -2,7 +2,8 @@
   <!-- Data panel, docked at the bottom: tabs on top, and its height changes between collapsed
        (tabs only), compact and fullscreen by dragging or tapping the handle, or with the buttons -->
   <div id="bottom-section" :class="'panel-' + $gui.panelState">
-    <time-control></time-control>
+    <time-control v-if="!$gui.patiMode"></time-control>
+    <pati-time-control v-else></pati-time-control>
     <!-- The conditions at the buoy, while the 3D view's card shows a vessel (see NowCard) -->
     <conditions-strip></conditions-strip>
     <div class="panel-header">
@@ -44,6 +45,7 @@ import MapBuoyLocation from './BottomSection/MapBuoyLocation.vue';
 import AboutPanel from './BottomSection/AboutPanel.vue';
 import HistorySection from './BottomSection/HistorySection.vue';
 import TimeControl from './TimeControl.vue';
+import PatiTimeControl from './PatiTimeControl.vue';
 import ConditionsStrip from './Bottom/ConditionsStrip.vue';
 
 
@@ -210,6 +212,7 @@ export default {
     "about": AboutPanel,
     "historySection": HistorySection,
     "time-control": TimeControl,
+    "pati-time-control": PatiTimeControl,
     "conditions-strip": ConditionsStrip,
     
   }

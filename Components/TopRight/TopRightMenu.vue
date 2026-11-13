@@ -28,6 +28,18 @@
       <!-- Our equipment, and whether each one is transmitting -->
       <own-assets-menu></own-assets-menu>
 
+      <!-- The Patí Científic mode: its water columns of 2021-22 in 3D (see GUIManager.patiDate) -->
+      <button @click="patiButtonClicked" class="roundButton icon-big icon-str clickable pati-button" :class="{ active: $gui.patiMode }"
+        :title="$t($gui.patiMode ? 'pati3d.exitTitle' : 'pati3d.buttonTitle')" :aria-pressed="$gui.patiMode">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 6.5c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0" fill="none" stroke="#1a1a1a" stroke-width="1.6" stroke-linecap="round"/>
+          <rect x="8.5" y="9" width="7" height="3.6" fill="#d6454f"/>
+          <rect x="8.5" y="12.6" width="7" height="3.6" fill="#1fa3a3"/>
+          <rect x="8.5" y="16.2" width="7" height="3.8" fill="#2c3e9e"/>
+          <rect x="8.5" y="9" width="7" height="11" fill="none" stroke="#1a1a1a" stroke-width="1.4"/>
+        </svg>
+      </button>
+
     </div>
   </div>
 </template>
@@ -71,6 +83,12 @@ export default {
     },
     buoyButtonClicked: function(e){
       window.eventBus.emit('InstrumentsMenu_buoyButtonClicked');
+      this.$gui.patiDate = undefined; // Back to now, too
+    },
+    // Into the Patí Científic mode (see GUIManager.loadPati for its first date), or out of it
+    patiButtonClicked: async function(){
+      if (this.$gui.patiMode) this.$gui.patiDate = undefined;
+      else this.$gui.patiDate = (await this.$gui.loadPati()).start;
     },
   },
   components: {
@@ -116,6 +134,10 @@ export default {
 
   .roundButton:hover {
     background-color: var(--blue);
+  }
+  .pati-button.active {
+    background-color: #12a39a;
+    box-shadow: 0 0 0 2px white;
   }
 
 

@@ -210,6 +210,8 @@ export default {
     // and tapping them in the 3D view opens their card here
     this.buoyMarker.on('click', () => window.sceneManager?.focusOnBuoy());
     window.eventBus.on('Canvas3D_objectPicked', this.showPicked);
+    // The Patí Científic mode of the 3D view shows its stations here too
+    this.$watch(() => this.$gui.patiMode, on => { if (on) this.map.addLayer(this.profilesLayer); }, { immediate: true });
 
     // Ships already received
     this.ships = {};
@@ -655,6 +657,11 @@ export default {
       element.querySelector('.map-profile-select')?.addEventListener('change', (e) => select(e, Number(e.target.value)));
       element.querySelector('.map-profile-prev')?.addEventListener('click', (e) => select(e, station.selected - 1));
       element.querySelector('.map-profile-next')?.addEventListener('click', (e) => select(e, station.selected + 1));
+      // The water columns of that date at all the stations, in the 3D view (see GUIManager.patiDate)
+      element.querySelector('.map-profile-3d')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.$gui.patiDate = station.profiles[station.selected].date;
+      });
       // The station's water column over the year, in the history section (see WaterColumnChart)
       element.querySelector('.map-profile-year')?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -689,7 +696,10 @@ export default {
           <tr><td>${t("Bottom")} (${profile.depth[last].toFixed(0)} m)</td><td>${profile.temperature[last].toFixed(1)} ºC</td></tr>
         </table>
         <div class="map-card-note">${profiles.length} ${t("profiles")} · ${profiles[0].date.slice(0, 4)}–${profiles[profiles.length - 1].date.slice(2, 4)} · ICM-CSIC</div>
-        ${station.id != null ? `<button class="map-card-button map-profile-year">${t("Over the year")}</button>` : ''}
+        ${station.id != null ? `<div class="map-profile-buttons">
+          <button class="map-card-button map-profile-year">${t("Over the year")}</button>
+          <button class="map-card-button map-profile-3d">${t("pati3d.inThreeD")}</button>
+        </div>` : ''}
         <a class="map-card-link" href="${profile.doi}" target="_blank" rel="noopener">${t("Data on Zenodo")} &#8599;</a>
       </div>`;
     },
@@ -1231,6 +1241,10 @@ export default {
 }
 .map-ship svg {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+.map-profile-buttons {
+  display: flex;
+  gap: 6px;
 }
 .map-card .map-card-button {
   width: 100%;

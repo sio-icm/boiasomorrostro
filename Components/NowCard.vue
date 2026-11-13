@@ -1,10 +1,11 @@
 <template>
   <!-- The conditions at the app's moment (see GUIManager.selectedTime; now by default), over the
        3D view: measured at the buoy if it has data then, else forecast (and since when the buoy is
-       silent). Opens the observations or the forecast. Hidden while the data panel covers the 3D view -->
+       silent). Opens the observations or the forecast. Hidden while the data panel covers the 3D view,
+       and in the Patí Científic mode (see GUIManager.patiDate), which is not now -->
   <!-- While the camera follows a vessel (see GUIManager.followed): that vessel, as its card on the
        map (see vesselInfo.js), and the conditions go to a strip at the bottom (see ConditionsStrip) -->
-  <div class="now-card now-vessel" v-if="vessel && $gui.panelState !== 'fullscreen'">
+  <div class="now-card now-vessel" v-if="vessel && $gui.panelState !== 'fullscreen' && !$gui.patiMode">
     <div class="now-title">
       <span>{{ vessel.title }}</span>
       <button class="now-close" @click="leaveVessel" :title="$t('Back to the buoy')">&times;</button>
@@ -23,7 +24,7 @@
     <a v-if="vessel.link" class="now-link" :href="vessel.link.href" target="_blank" rel="noopener">{{ vessel.link.text }} &#8599;</a>
     <div v-else-if="vessel.note" class="now-warning">{{ vessel.note }}</div>
   </div>
-  <div v-else class="now-card clickable" v-show="rows.length && $gui.panelState !== 'fullscreen'" @click="open" :title="$t(measured ? 'Observations' : 'Forecast')">
+  <div v-else class="now-card clickable" v-show="rows.length && $gui.panelState !== 'fullscreen' && !$gui.patiMode" @click="open" :title="$t(measured ? 'Observations' : 'Forecast')">
     <div class="now-title">
       <span>{{ title }}</span>
       <span class="now-source">{{ measured ? $t('Buoy') + (age ? ' · ' + age : '') : $t('Forecast') }}</span>

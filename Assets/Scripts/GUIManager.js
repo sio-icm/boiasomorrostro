@@ -43,6 +43,34 @@ class GUIManager {
   // buoy's data (see WaterColumnChart), or undefined
   waterColumnStation = undefined;
 
+  // THE PATÍ CIENTÍFIC MODE of the 3D view: its water columns of 2021-22 at its stations, for a
+  // date of its campaigns ('YYYY-MM-DD'), instead of what is there now (see WaterColumnsEntity and
+  // PatiTimeControl). undefined, the app as always. In the address as <PATI=2022-06-16>
+  _patiDate = undefined;
+  get patiDate() { return this._patiDate; }
+  set patiDate(date) {
+    this._patiDate = date;
+    if (date) window.location.setHashValue('PATI', date);
+    else window.location.removeHash('PATI');
+    window.eventBus.emit('GUIManager_patiChanged', date);
+  }
+  get patiMode() { return this._patiDate != undefined; }
+  // The dates of its profiles at its regular stations, sorted, and the one to start with: the
+  // day most stations were measured and, of those, the most layered (warm on top, cold below)
+  loadPati() {
+    this._pati ??= fetch('data/StaticData/pati_cientific.json').then(res => res.json()).then(data => {
+      const profiles = data.stations.filter(s => s.id != null).flatMap(s => s.profiles);
+      const dates = [...new Set(profiles.map(p => p.date))].sort();
+      const score = (date) => {
+        const those = profiles.filter(p => p.date === date);
+        const layered = those.reduce((sum, p) => sum + p.temperature[0] - p.temperature[p.temperature.length - 1], 0) / those.length;
+        return those.length * 100 + layered;
+      };
+      return { dates, start: dates.reduce((best, date) => score(date) > score(best) ? date : best) };
+    });
+    return this._pati;
+  }
+
   // Whether the bottom section is fullscreen, compact (normal height) or hidden
   _panelState = 'compact';
   get panelState() { return this._panelState; }
@@ -189,6 +217,9 @@ class GUIManager {
     let time = window.location.getHashValue('TIME');
     if (time != undefined && !isNaN(Date.parse(time.replace(/Z$/, ':00Z'))))
       this._selectedTime = new Date(Date.parse(time.replace(/Z$/, ':00Z')));
+    // Patí Científic mode <PATI=2022-06-16>
+    let pati = window.location.getHashValue('PATI');
+    if (pati != undefined && /^\d{4}-\d{2}-\d{2}$/.test(pati)) this._patiDate = pati;
     // Write back the state the app starts with
     this.selectedSection = this._selectedSection;
     this.panelState = this._panelState;

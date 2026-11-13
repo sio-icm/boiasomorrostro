@@ -170,6 +170,16 @@ export default ca = {
   "See on the fleet tracker": "Veure al panell de la flota",
   "The fleet tracker is not available now": "El panell de la flota no està disponible ara",
   "History": "Històric",
+  // The Patí Científic mode of the 3D view (see PatiTimeControl)
+  pati3d: {
+    buttonTitle: "Patí Científic 2021–22: la columna d'aigua en 3D",
+    exitTitle: "Sortir del Patí Científic i tornar a ara",
+    previous: "Campanya anterior",
+    next: "Campanya següent",
+    date: "Data de la campanya",
+    hint: "Toca una estació per veure'n l'any",
+    inThreeD: "Veure en 3D",
+  },
   history: {
     pati: "Patí Científic 2021–22",
     station: "Estació",

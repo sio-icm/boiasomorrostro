@@ -217,6 +217,14 @@ export default {
     // so the present moves on and the forecast is refreshed
     this.applyMoment();
     window.eventBus.on('GUIManager_timeChanged', () => this.applyMoment());
+    // The Patí Científic mode (see GUIManager.patiDate): its water columns, or back to now
+    this.sceneManager.setLocale(this.$i18n.locale);
+    this.$watch(() => this.$i18n.locale, locale => this.sceneManager.setLocale(locale));
+    window.eventBus.on('GUIManager_patiChanged', (date) => {
+      this.sceneManager.setPatiDate(date);
+      if (!date) this.applyMoment();
+    });
+    if (this.$gui.patiDate) this.sceneManager.setPatiDate(this.$gui.patiDate);
     this.waveForecastInterval = setInterval(this.applyMoment, 60 * 60 * 1000);
 
     // ****** LOADING SCREEN  - INITIAL PARAMETERS *****
@@ -246,6 +254,13 @@ export default {
       const rect = canvas.getBoundingClientRect();
       const picked = this.sceneManager.pickAt(e.clientX - rect.left, e.clientY - rect.top);
       if (picked == undefined) return;
+      // A Patí Científic station: its water column over the year, in the history section
+      if (String(picked).startsWith('station-')) {
+        this.$gui.waterColumnStation = Number(picked.slice(8));
+        this.$gui.selectedSection = 'history';
+        if (this.$gui.panelState === 'hidden') this.$gui.panelState = 'compact';
+        return;
+      }
       if (picked === 'buoy') this.sceneManager.focusOnBuoy();
       else this.sceneManager.follow(picked);
       window.eventBus.emit('Canvas3D_objectPicked', picked);
@@ -275,7 +290,8 @@ export default {
     // Sky, sea and wind of the moment shown (see GUIManager.selectedTime)
     async applyMoment() {
       const date = this.$gui.moment;
-      this.sceneManager.setSkyTime(this.$gui.selectedTime); // undefined: now, and moving on
+      // undefined: now, and moving on. In the Patí Científic mode, its date's (see SceneManager.setPatiDate)
+      if (!this.$gui.patiMode) this.sceneManager.setSkyTime(this.$gui.selectedTime);
       await this.loadWaveForecast(date);
       await this.applyWind(date);
     },

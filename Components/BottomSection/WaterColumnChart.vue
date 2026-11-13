@@ -52,6 +52,7 @@ export default {
   },
   watch: {
     station() { this.draw(); },
+    '$gui.patiDate'() { this.draw(); },
   },
   async mounted() {
     window.addEventListener('resize', this.resize);
@@ -128,6 +129,10 @@ export default {
               // Stroked in its own colour too, so neighbouring cells leave no hairline between them
               style: { fill: api.visual('color'), stroke: api.visual('color'), lineWidth: 0.8 } };
           },
+          // The date the 3D view shows, in its Patí Científic mode (see GUIManager.patiDate)
+          markLine: this.$gui.patiDate ? { silent: true, symbol: 'none', animation: false,
+            label: { show: false }, lineStyle: { color: darkBlue, type: 'dashed', width: 1.5 },
+            data: [{ xAxis: Date.parse(`${this.$gui.patiDate}T12:00:00`) }] } : undefined,
         }],
       }, true);
       this.$nextTick(this.resize);
