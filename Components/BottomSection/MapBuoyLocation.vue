@@ -120,6 +120,10 @@ export default {
     // The other buoys of the network
     this.networkLayer = L.layerGroup(NETWORK_BUOYS.map(buoy => this.createNetworkBuoy(buoy, buoyLatLng)));
     overlays[this.$i18n.t("ICATMAR buoys")] = this.networkLayer;
+    // The Patí Científic's temperature profiles of 2021-22, at its stations (see drawProfileStations)
+    this.profilesLayer = L.layerGroup().addTo(map);
+    overlays[this.$i18n.t("Patí Científic profiles")] = this.profilesLayer;
+    this.drawProfileStations();
     // Ships from AIS, with their recent trails (see handleAISMessage)
     this.shipsLayer = L.layerGroup().addTo(map);
     overlays[this.$i18n.t("Ships")] = this.shipsLayer;
@@ -580,6 +584,110 @@ export default {
       return `<div class="map-card"><div class="map-card-title">${t("Buoy")} ${buoy.name}</div>${body}
         <div class="map-card-date">${t("From Somorrostro")}: ${buoy.distance}</div></div>`;
     },
+    // PATÍ CIENTÍFIC: its temperature profiles of 2021-22, exported once from the old IoT project
+    // (tools/export_pati_cientific.py). A station's card shows one of them, chosen by date, over
+    // the station's others in grey, on the same axes: how the water column changes over the year
+    async drawProfileStations() {
+      let data;
+      try {
+        data = await fetch('data/StaticData/pati_cientific.json').then(res => res.json());
+      } catch (error) {
+        console.warn('Patí Científic profiles not loaded:', error);
+        return;
+      }
+      data.stations.forEach(station => {
+        // The regular stations are numbered; profiles taken elsewhere once or twice, a dot
+        const regular = station.id != null;
+        const marker = L.marker([station.lat, station.lon], {
+          icon: L.divIcon({
+            className: 'map-profile-station' + (regular ? '' : ' minor'),
+            iconSize: regular ? [20, 20] : [10, 10],
+            html: regular ? `<span>${station.id}</span>` : '',
+          }),
+        });
+        station.selected = station.profiles.length - 1; // The latest
+        marker.bindPopup(() => this.profileCardHTML(station), { className: 'map-popup', minWidth: 236, maxWidth: 260 });
+        marker.on('popupopen', () => this.bindProfileCard(marker, station));
+        this.profilesLayer.addLayer(marker);
+      });
+    },
+    // The card's date controls: they draw it again with another profile
+    bindProfileCard(marker, station) {
+      const element = marker.getPopup().getElement();
+      if (!element) return;
+      // Drawn again once the click is over: a button taken out of the page in the middle of its
+      // click would reach the map as a click on it, which closes the card
+      const select = (event, index) => {
+        event.stopPropagation();
+        station.selected = Math.max(0, Math.min(station.profiles.length - 1, index));
+        setTimeout(() => {
+          marker.getPopup().update();
+          this.bindProfileCard(marker, station);
+        });
+      };
+      element.querySelector('.map-profile-select')?.addEventListener('change', (e) => select(e, Number(e.target.value)));
+      element.querySelector('.map-profile-prev')?.addEventListener('click', (e) => select(e, station.selected - 1));
+      element.querySelector('.map-profile-next')?.addEventListener('click', (e) => select(e, station.selected + 1));
+    },
+    profileCardHTML(station) {
+      const t = (key) => this.$i18n.t(key);
+      const profiles = station.profiles;
+      const profile = profiles[station.selected];
+      const dateText = (p) => new Date(p.date + 'T12:00:00').toLocaleDateString(this.$i18n.locale, { day: 'numeric', month: 'short', year: 'numeric' })
+        + (p.time ? ` · ${p.time}` : '');
+      const title = station.id != null ? `${t("Station")} ${station.id}` : t("Profile");
+      const date = profiles.length > 1 ? `
+        <div class="map-profile-nav">
+          <button class="map-profile-prev" ${station.selected === 0 ? 'disabled' : ''} aria-label="${t("Previous")}">&#8249;</button>
+          <select class="map-profile-select" aria-label="${t("Date")}">
+            ${profiles.map((p, n) => `<option value="${n}" ${n === station.selected ? 'selected' : ''}>${dateText(p)}</option>`).join('')}
+          </select>
+          <button class="map-profile-next" ${station.selected === profiles.length - 1 ? 'disabled' : ''} aria-label="${t("Next")}">&#8250;</button>
+        </div>` : `<div class="map-card-date">${dateText(profile)}</div>`;
+      const last = profile.depth.length - 1;
+      return `<div class="map-card">
+        <div class="map-card-title">${title} <span class="map-profile-source">· Patí Científic</span></div>
+        <div class="map-card-note">${t("Temperature by depth")}</div>
+        ${date}
+        ${this.profileChartSVG(profiles, station.selected)}
+        <table class="map-card-table">
+          <tr><td>${t("Surface")}</td><td>${profile.temperature[0].toFixed(1)} ºC</td></tr>
+          <tr><td>${t("Bottom")} (${profile.depth[last].toFixed(0)} m)</td><td>${profile.temperature[last].toFixed(1)} ºC</td></tr>
+        </table>
+        <div class="map-card-note">${profiles.length} ${t("profiles")} · ${profiles[0].date.slice(0, 4)}–${profiles[profiles.length - 1].date.slice(2, 4)} · ICM-CSIC</div>
+        <a class="map-card-link" href="${profile.doi}" target="_blank" rel="noopener">${t("Data on Zenodo")} &#8599;</a>
+      </div>`;
+    },
+    // Temperature (top axis) against depth (down), as oceanographers draw them: the selected
+    // profile in blue over the station's others, on axes fitting them all
+    profileChartSVG(profiles, selected) {
+      const W = 230, H = 170, left = 26, right = 8, top = 18, bottom = 6;
+      const temperatures = profiles.flatMap(p => p.temperature);
+      const t0 = Math.floor(Math.min(...temperatures)), t1 = Math.ceil(Math.max(...temperatures));
+      const d1 = Math.max(5, Math.ceil(Math.max(...profiles.flatMap(p => p.depth)) / 5) * 5);
+      const x = (t) => left + (t - t0) / (t1 - t0 || 1) * (W - left - right);
+      const y = (d) => top + d / d1 * (H - top - bottom);
+      const line = (p) => p.depth.map((d, n) => `${x(p.temperature[n]).toFixed(1)},${y(d).toFixed(1)}`).join(' ');
+      const tStep = t1 - t0 > 8 ? 4 : 2;
+      const dStep = d1 > 20 ? 10 : 5;
+      let grid = '';
+      for (let t = Math.ceil(t0 / tStep) * tStep; t <= t1; t += tStep) {
+        grid += `<line x1="${x(t)}" x2="${x(t)}" y1="${top}" y2="${H - bottom}" class="map-profile-grid"/>
+          <text x="${x(t)}" y="${top - 5}" text-anchor="middle">${t}</text>`;
+      }
+      for (let d = 0; d <= d1; d += dStep) {
+        grid += `<line x1="${left}" x2="${W - right}" y1="${y(d)}" y2="${y(d)}" class="map-profile-grid"/>
+          <text x="${left - 4}" y="${y(d) + 3}" text-anchor="end">${d}</text>`;
+      }
+      const others = profiles.map((p, n) => n === selected ? '' : `<polyline points="${line(p)}" class="map-profile-other"/>`).join('');
+      return `<svg class="map-profile-chart" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+        ${grid}
+        <text x="${W - right}" y="${top - 5}" text-anchor="end" class="map-profile-unit">ºC</text>
+        <text x="2" y="${top - 5}" class="map-profile-unit">m</text>
+        ${others}
+        <polyline points="${line(profiles[selected])}" class="map-profile-line"/>
+      </svg>`;
+    },
     // Opens the card of what was tapped in the 3D view ('buoy' or a ship's MMSI), and pans to it
     showPicked(picked) {
       const marker = picked === 'buoy' ? this.buoyMarker : this.ships[picked]?.marker;
@@ -954,6 +1062,98 @@ export default {
   stroke: var(--darkBlue);
   stroke-opacity: 0.25;
   stroke-dasharray: 2 3;
+}
+/* PATÍ CIENTÍFIC: its stations, and the profile on their cards */
+.map-profile-station {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #12a39a;
+  border: 2px solid white;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.map-profile-station span {
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-shadow: none;
+}
+.map-profile-station.minor {
+  border-width: 1.5px;
+  opacity: 0.85;
+}
+.map-profile-source {
+  font-weight: 400;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+.map-profile-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0 2px;
+}
+.map-profile-nav select {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--darkBlue);
+  padding: 2px 4px;
+  border: 1px solid rgba(var(--darkBlueRGB), 0.3);
+  border-radius: 6px;
+  background: white;
+}
+.map-profile-nav button {
+  flex: none;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(var(--darkBlueRGB), 0.3);
+  border-radius: 6px;
+  background: white;
+  color: var(--darkBlue);
+  text-shadow: none;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.map-profile-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.map-profile-chart {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 4px 0;
+}
+.map-profile-chart text {
+  font-size: 9px;
+  fill: var(--darkBlue);
+  opacity: 0.7;
+}
+.map-profile-chart .map-profile-unit {
+  font-weight: 700;
+  opacity: 0.9;
+}
+.map-profile-grid {
+  stroke: var(--darkBlue);
+  stroke-opacity: 0.12;
+}
+.map-profile-other {
+  fill: none;
+  stroke: var(--darkBlue);
+  stroke-opacity: 0.13;
+  stroke-width: 1;
+}
+.map-profile-line {
+  fill: none;
+  stroke: #12a39a;
+  stroke-width: 2.2;
+  stroke-linejoin: round;
 }
 .map-network-buoy svg {
   width: 16px;
