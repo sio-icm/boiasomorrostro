@@ -62,10 +62,11 @@ boiasomorrostro`). Qué hacer:
 
 ### Barcos simulados
 
-Con `SIMULATED_BOATS=1` en el `.env`, el propio `boia_server.py` saca siempre un BlueBoat y un patí
-simulados cerca de la boya, para enseñar la web aunque no haya nada nuestro en el agua. En la web
-salen como «Simulado». No abre la entrada de posiciones a nadie (eso es `PATI_SIMULATOR`, que en el
-servidor sigue apagado). Para quitarlos, vaciarla y reiniciar el servicio.
+Con `SIMULATED_BOATS` en el `.env`, el propio `boia_server.py` saca siempre barcos simulados cerca
+de la boya, para enseñar la web aunque no haya nada nuestro en el agua: `blueboat`, `pati` (separados
+por comas) o `1` para los dos. En el servidor está `SIMULATED_BOATS=blueboat`. En la web salen como
+«Simulado». No abre la entrada de posiciones a nadie (eso es `PATI_SIMULATOR`, que en el servidor
+sigue apagado). Para quitarlos, vaciarla y reiniciar el servicio.
 
 ## En otro servidor
 
