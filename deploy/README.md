@@ -24,10 +24,10 @@ git ls-files | grep -v -E '^(deploy/|tools/)|\.(py|blend)$|(^|/)\.' > /tmp/web.t
 Se queda fuera lo que no es de la web: `deploy/`, `tools/`, los `.py` (el servidor va aparte), los
 `.blend` (originales de Blender de los modelos) y los archivos ocultos (`.gitignore`, `.env.example`...).
 
-Y si cambia `boia_server.py`:
+Y si cambia `boia_server.py` o `erddap_mirror.py`:
 
 ```bash
-scp boia_server.py bardaji@iot.icm.csic.es:/opt/boiasomorrostro/ && ssh bardaji@iot.icm.csic.es sudo systemctl restart boiasomorrostro
+scp boia_server.py erddap_mirror.py bardaji@iot.icm.csic.es:/opt/boiasomorrostro/ && ssh bardaji@iot.icm.csic.es sudo systemctl restart boiasomorrostro
 ```
 
 nginx hace que el navegador compruebe el código (`.html`, `.js`, `.vue`, `.css`) en cada visita, así que
@@ -38,6 +38,21 @@ Ojo: el `websockets` de Ubuntu 22.04 (9.1) es demasiado antiguo; por eso el `ven
 
 En su `.env`, además de la clave y `BOIA_ORIGINS`: `BOIA_HTTP_HOST=127.0.0.1` (el puerto 8767 solo
 se usa a través de nginx) y sin `PATI_SIMULATOR`, para que nadie pueda enviar un patí falso.
+
+### Copia local de los datos de las boyas
+
+El proxy no pide al ERDDAP los datos de las boyas: los contesta desde una copia en
+`/opt/boiasomorrostro/erddap_mirror.sqlite` (`erddap_mirror.py`), que `boia_server.py` pone al día
+cada 5 min con las filas nuevas de cada ERDDAP (`erddap.icatmar.cat` y `hebe.icm.csic.es`). Copia
+todos los datasets de Somorrostro (`BUOY_SOMO_*`) y el viento, oleaje y CTD de las otras boyas de
+la red. Así, si un ERDDAP falla o deja de listar las boyas un tiempo, la web sigue con lo que tenía.
+
+- La primera vez descarga todo el histórico que tenga el ERDDAP, por meses; lo que el ERDDAP ya no
+  tiene no se puede recuperar.
+- En el registro salen las filas nuevas (`ERDDAP copy: ...`) y cuándo un ERDDAP deja de contestar
+  o vuelve (`❌ ERDDAP ... not answering` / `✅ ERDDAP ... copied`).
+- Para empezar de cero, parar el servicio, borrar `erddap_mirror.sqlite*` y arrancarlo; para
+  desactivarla, `ERDDAP_MIRROR=0` en el `.env`.
 
 ### Vehículos del BlueLab (BlueBoat)
 

@@ -1,2 +1,5 @@
 # Local secrets (e.g. the aisstream.io key used by ais_relay.py)
 .env
+
+# Local copy of the buoys ERDDAP data (SQLite, see erddap_mirror.py)
+erddap_mirror.sqlite*

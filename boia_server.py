@@ -6,6 +6,9 @@ development and, the same, on the server (see deploy/README.md).
 ERDDAP PROXY (HTTP port, /proxy/?url=<ERDDAP URL>): the buoys' ERDDAPs refuse browser requests,
 so this fetches them and adds the CORS header for the allowed origins (BOIA_ORIGINS in .env,
 comma separated; localhost always). Only for the hosts in PROXY_HOSTS, cached for a minute.
+The buoys' datasets are answered from a local copy (see erddap_mirror.py), kept up to date every
+MIRROR_SECONDS, so the app keeps its data while an ERDDAP fails or stops listing them: in the
+SQLite file ERDDAP_MIRROR (.env; erddap_mirror.sqlite next to this script by default, "0" off).
 
 AIS FEED (WebSocket port), in place of wss://api.icatmar.cat/ais.
 
@@ -50,6 +53,8 @@ from urllib.parse import parse_qs, quote, urlsplit
 
 import websockets
 
+from erddap_mirror import Mirror
+
 AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream'
 # Around the buoy: Barcelona coast, from Garraf to Badalona and some 40 km offshore
 BBOXES = [[[41.10, 1.86], [41.64, 2.58]]]
@@ -58,6 +63,8 @@ HISTORY_SECONDS = 30 * 60  # recent messages sent to each new client, so ships s
 PROXY_HOSTS = {'erddap.icatmar.cat', 'hebe.icm.csic.es'}
 PROXY_CACHE_SECONDS = 60
 proxy_cache = {}  # url -> (fetched at, status, content type, body)
+MIRROR_SECONDS = 5 * 60
+mirror = None  # The local copy of the buoys' datasets, if on
 
 # A patí de vela: 5.68 m long (A + B, from the GPS), 1.6 m wide (C + D)
 PATI_DIMENSION = {'A': 3, 'B': 3, 'C': 1, 'D': 1}
@@ -399,7 +406,30 @@ async def proxy(path):
     target = parse_qs(urlsplit(path).query).get('url', [''])[0]
     if urlsplit(target).hostname not in PROXY_HOSTS:
         return 403, 'text/plain', b'Host not allowed'
+    if mirror:
+        try:
+            answer = await asyncio.to_thread(mirror.answer, target, fetch_upstream)
+            if answer:
+                return answer
+        except Exception as error:  # The copy must never break the proxy: the server, then
+            print(f'❌ ERDDAP copy could not answer {target}: {error!r}')
     return await asyncio.to_thread(fetch_upstream, target)
+
+
+def read_mirror():
+    path = read_env('ERDDAP_MIRROR') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'erddap_mirror.sqlite')
+    return None if path == '0' else Mirror(path)
+
+
+async def update_mirror():
+    while True:
+        try:
+            added = await asyncio.to_thread(mirror.update)
+            if added:
+                print('ERDDAP copy:', ', '.join(f'{name} +{count}' for name, count in added.items()))
+        except Exception as error:
+            print(f'❌ ERDDAP copy not updated: {error!r}')
+        await asyncio.sleep(MIRROR_SECONDS)
 
 
 # HTTP PORT: the proxy, and patí positions
@@ -488,6 +518,11 @@ async def main(port, http_port):
             print('BlueLab fleet tracker:', fleet['url'])
             asyncio.create_task(fleet_poll(fleet_settings))
             asyncio.create_task(fleet_stream(fleet_settings))
+        global mirror
+        mirror = read_mirror()
+        if mirror:
+            print('ERDDAP copy of the buoys:', mirror.path)
+            asyncio.create_task(update_mirror())
         simulated = read_simulated_boats()
         if simulated:
             print('Simulated boats out:', ', '.join(simulated))
