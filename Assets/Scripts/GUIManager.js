@@ -39,6 +39,9 @@ class GUIManager {
   followed = undefined;
   // The conditions at the buoy as the card shows them (see NowCard), also for that strip
   conditions = undefined;
+  // The Patí Científic's station whose water column the history section shows, instead of the
+  // buoy's data (see WaterColumnChart), or undefined
+  waterColumnStation = undefined;
 
   // Whether the bottom section is fullscreen, compact (normal height) or hidden
   _panelState = 'compact';

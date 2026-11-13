@@ -160,6 +160,7 @@ export default ca = {
   "Bottom": "Fons",
   "profiles": "perfils",
   "Data on Zenodo": "Dades a Zenodo",
+  "Over the year": "Evolució de l'any",
   "Previous": "Anterior",
   "Next": "Següent",
   "Temperature by depth": "Temperatura del mar segons la fondària",
@@ -170,6 +171,10 @@ export default ca = {
   "The fleet tracker is not available now": "El panell de la flota no està disponible ara",
   "History": "Històric",
   history: {
+    pati: "Patí Científic 2021–22",
+    station: "Estació",
+    depth: "Fondària",
+    waterColumnNote: "Temperatura del mar segons la fondària a cada perfil del Patí Científic (ICM-CSIC) en aquesta estació. Cada franja vertical és un perfil; en blanc, setmanes sense mesures. Les estacions són al mapa.",
     days7: "7 dies",
     days30: "30 dies",
     all: "Tot",

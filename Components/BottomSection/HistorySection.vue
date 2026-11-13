@@ -4,11 +4,15 @@
     <div class="history-toolbar">
       <div class="button-group horizontal">
         <button v-for="range in ranges" :key="range.id" class="clickable"
-          :class="{ selectedOption: range.id === rangeId }" @click="setRange(range.id)">
+          :class="{ selectedOption: !waterColumn && range.id === rangeId }" @click="setRange(range.id)">
           <span>{{ $t('history.' + range.id) }}</span>
         </button>
       </div>
-      <div class="history-info">
+      <!-- The Patí Científic's profiles of 2021-22 instead of the buoy's data (see WaterColumnChart) -->
+      <button class="clickable history-pati" :class="{ selectedOption: waterColumn }" @click="showWaterColumn()">
+        <span>{{ $t('history.pati') }}</span>
+      </button>
+      <div class="history-info" v-show="!waterColumn">
         <span v-if="loading">{{ $t('Loading') }}...</span>
         <span v-else-if="rangeLabel">{{ rangeLabel }}</span>
         <span class="history-downloads">{{ $t('history.download') }}:
@@ -16,9 +20,10 @@
         </span>
       </div>
     </div>
-    <div v-if="emptyCharts.length" class="history-empty">{{ $t('history.noData') }}: {{ emptyCharts.join(', ') }}</div>
+    <water-column-chart v-if="waterColumn && echarts" :echarts="echarts" v-model:station="$gui.waterColumnStation"/>
+    <div v-if="emptyCharts.length && !waterColumn" class="history-empty">{{ $t('history.noData') }}: {{ emptyCharts.join(', ') }}</div>
     <!-- One chart per variable, stacked, sharing the time axis -->
-    <div class="history-charts" ref="charts" :style="{ height: chartsHeight + 'px' }"></div>
+    <div class="history-charts" v-show="!waterColumn" ref="charts" :style="{ height: chartsHeight + 'px' }"></div>
   </div>
 </template>
 
@@ -73,8 +78,11 @@ function loadECharts() {
   return echartsPromise;
 }
 
+import WaterColumnChart from './WaterColumnChart.vue';
+
 export default {
   name: 'HistorySection',
+  components: { 'water-column-chart': WaterColumnChart },
   data() {
     return {
       ranges: RANGES,
@@ -83,11 +91,17 @@ export default {
       rangeLabel: '',
       emptyCharts: [],
       visibleCount: CHARTS.length,
+      echarts: undefined,
     };
   },
   computed: {
     sensors() {
       return [...new Set(CHARTS.flatMap(chart => chart.series.map(series => series.sensor)))];
+    },
+    // The Patí Científic's water column instead of the buoy's charts, at the station in
+    // $gui.waterColumnStation (also set from a station's card on the map)
+    waterColumn() {
+      return this.$gui.waterColumnStation != undefined;
     },
     chartsHeight() {
       return this.visibleCount * CHART_HEIGHT + SLIDER_HEIGHT;
@@ -97,6 +111,7 @@ export default {
     window.addEventListener('resize', this.resize);
     loadECharts().then(echarts => {
       if (this.unmounted) return;
+      this.echarts = Vue.markRaw(echarts);
       this.chart = echarts.init(this.$refs.charts);
       this.load();
     });
@@ -108,8 +123,16 @@ export default {
   },
   methods: {
     setRange(id) {
+      const wasWaterColumn = this.waterColumn;
+      this.$gui.waterColumnStation = undefined;
+      // Hidden, the charts couldn't measure themselves
+      if (wasWaterColumn) this.$nextTick(this.resize);
+      if (id === this.rangeId && wasWaterColumn) return;
       this.rangeId = id;
       this.load();
+    },
+    showWaterColumn() {
+      if (!this.waterColumn) this.$gui.waterColumnStation = 1;
     },
     resize() {
       this.chart?.resize();
