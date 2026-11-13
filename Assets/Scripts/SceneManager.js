@@ -26,6 +26,7 @@ import { AISVesselsManager } from '/boiasomorrostro/Assets/AISVessels/AISVessels
 import { sunPosition } from '/boiasomorrostro/Assets/Scripts/SunPosition.js';
 import { CityLights } from '/boiasomorrostro/Assets/Terrain/CoastLine/CityLights.js';
 import { WindStreaks } from '/boiasomorrostro/Assets/Wind/WindStreaks.js';
+import { WaterColumnsEntity } from '/boiasomorrostro/Assets/PatiCientific/WaterColumnsEntity.js';
 
 // Light by the height of the sun (degrees), interpolated between these states:
 //  tint      multiplies the sky panorama, the air and the sky the sea reflects
@@ -505,8 +506,15 @@ class SceneManager{
     }
     this.windStreaks?.update(dt, this.controls.target, this.windDirection, this.windSpeed, this.skyDaylight, this.renderer, this.camera);
 
-    // Vessels (the patí sails between reports and rides the waves)
-    if (this.aisVesselsManager) {
+    // Vessels (the patí sails between reports and rides the waves), hidden in the Patí Científic
+    // mode: they are now, the columns of 2021-22 (see setPatiDate)
+    if (this.patiDate) {
+      Object.values(this.aisVesselsManager.ships).forEach(ship => {
+        if (ship.root) ship.root.visible = false;
+        if (ship.ownMarker) ship.ownMarker.ring.visible = false;
+      });
+      this.waterColumns?.update(this.camera);
+    } else if (this.aisVesselsManager) {
       this.aisVesselsManager.update(dt, this.ocean, this.windDirection);
     }
     // Follow mode (see follow)
@@ -600,19 +608,65 @@ class SceneManager{
   // PICKING
   // What is under a point of the canvas (pixels from its top left): 'buoy', a vessel's MMSI,
   // or undefined. By screen distance (24 px) rather than by ray, so far, tiny ships can be picked
+  // In the Patí Científic mode, also its stations, as 'station-<number>'
   pickAt = function(x, y){
     const canvas = this.renderer.domElement;
-    const candidates = [['buoy', this.somorrostroBuoy?.root]];
-    Object.entries(this.aisVesselsManager.ships).forEach(([mmsi, ship]) => candidates.push([mmsi, ship.root]));
+    const candidates = [];
+    const add = (id, root) => { if (root?.visible) candidates.push([id, root.position.clone().add(new THREE.Vector3(0, 1.5, 0))]); };
+    add('buoy', this.somorrostroBuoy?.root);
+    Object.entries(this.aisVesselsManager.ships).forEach(([mmsi, ship]) => add(mmsi, ship.root));
+    if (this.patiDate) candidates.push(...this.waterColumns.pickables());
     let best, bestDistance = 24;
-    candidates.forEach(([id, root]) => {
-      if (!root?.visible) return;
-      const screen = root.position.clone().add(new THREE.Vector3(0, 1.5, 0)).project(this.camera);
+    candidates.forEach(([id, position]) => {
+      const screen = position.clone().project(this.camera);
       if (screen.z > 1) return; // Behind the camera
       const distance = Math.hypot((screen.x + 1) / 2 * canvas.clientWidth - x, (1 - screen.y) / 2 * canvas.clientHeight - y);
       if (distance < bestDistance) [best, bestDistance] = [id, distance];
     });
     return best;
+  }
+
+
+
+  // PATÍ CIENTÍFIC MODE (see GUIManager.patiDate)
+  // Its water columns of a date of 2021-22 ('YYYY-MM-DD') at its stations, under that day's
+  // midday sky, instead of the vessels of now. The first time, the camera flies to see them all
+  // from the south, the city behind. undefined: back to now and to the buoy
+  setPatiDate = async function(date){
+    this.patiDate = date;
+    if (!date) {
+      this.waterColumns?.show(false);
+      Object.values(this.aisVesselsManager.ships).forEach(ship => { if (ship.root) ship.root.visible = true; });
+      if (this.patiShown) this.focusOnBuoy();
+      this.patiShown = false;
+      return;
+    }
+    this.waterColumns ??= new WaterColumnsEntity(this.scene, this.LATITUDE, this.LONGITUDE);
+    this.waterColumns.locale = this.locale;
+    await this.waterColumns.setDate(date);
+    if (this.patiDate !== date) return; // Changed meanwhile
+    this.waterColumns.show(true);
+    this.setSkyTime(new Date(date + 'T10:00:00Z'));
+    if (!this.patiShown) {
+      this.patiShown = true;
+      // From farther on a narrow screen (a phone upright), to see them all from side to side
+      const centre = this.waterColumns.centre();
+      const halfWidth = Math.tan(this.camera.fov * Math.PI / 360) * this.camera.aspect;
+      const distance = Math.max(1, 1400 / halfWidth / 2200);
+      this.flyTo(centre.clone().add(new THREE.Vector3(100, 600, 2200).multiplyScalar(distance)), centre.clone().add(new THREE.Vector3(50, -100, 0)));
+    }
+  }
+  setLocale = function(locale){
+    this.locale = locale;
+    this.waterColumns?.setLocale(locale);
+  }
+  // Camera to a position, looking at a target (Vector3s)
+  flyTo = function(position, target){
+    this.stopFollowing();
+    new TWEEN.Tween(this.camera.position).to({ x: position.x, y: position.y, z: position.z }, 3000)
+      .easing(TWEEN.Easing.Cubic.InOut).start();
+    new TWEEN.Tween(this.controls.target).to({ x: target.x, y: target.y, z: target.z }, 3000)
+      .easing(TWEEN.Easing.Cubic.InOut).onUpdate(() => this.controls.update()).start();
   }
 
 
