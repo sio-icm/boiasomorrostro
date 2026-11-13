@@ -199,7 +199,15 @@ export default ca = {
   "From Somorrostro": "Des de Somorrostro",
   "Show or hide legend": "Mostrar o amagar la llegenda",
   "Centre on the buoy": "Centrar a la boia",
-  "Ships": "Vaixells",
+  "Ships": "Vaixells i vehicles",
+  // Headings of the map's layer list
+  mapLayers: {
+    now: "Ara",
+    forecast: "Predicció",
+    chart: "Cartografia",
+    projects: "Projectes i campanyes",
+  },
+
   "Cargo": "Càrrega",
   "Tanker": "Petrolier",
   "Passenger": "Passatge",

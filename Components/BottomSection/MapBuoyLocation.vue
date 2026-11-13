@@ -15,6 +15,26 @@ const NETWORK_BUOYS = [
 const ERDDAP = 'https://erddap.icatmar.cat/erddap/tabledap/';
 const ROSE_SECTORS = 16;
 
+// Leaflet's layer list with a heading over each group of overlays (options.groupOf: layer -> its
+// group's name). The overlays are listed in the order they were given, so each group's together
+const GroupedLayers = L.Control.Layers.extend({
+  _update() {
+    L.Control.Layers.prototype._update.call(this);
+    const labels = [...this._overlaysList.children];
+    let last;
+    this._layers.filter(item => item.overlay).forEach((item, index) => {
+      const group = this.options.groupOf.get(item.layer);
+      if (group && group !== last && labels[index]) {
+        const heading = L.DomUtil.create('div', 'map-layers-group');
+        heading.textContent = group;
+        this._overlaysList.insertBefore(heading, labels[index]);
+      }
+      last = group;
+    });
+    return this;
+  },
+});
+
 export default {
   name: "MapComponent",
 
@@ -110,27 +130,34 @@ export default {
     this.forecastTime = this.$gui.moment;
     window.eventBus.on('GUIManager_timeChanged', this.onTimeChanged);
     this.forecastControl = this.createForecastControl();
-    const overlays = {};
-    Object.values(this.forecasts).forEach(forecast => overlays[this.$i18n.t(forecast.label)] = forecast.group);
-    overlays[this.$i18n.t("Isobaths")] = isobaths;
-    overlays[this.$i18n.t("Nautical marks")] = seamarks;
     // Wind rose of the buoy's last days of data, around it (see drawWindRose)
     this.windRoseLayer = L.layerGroup().addTo(map);
-    overlays[this.$i18n.t("Wind rose")] = this.windRoseLayer;
     // The other buoys of the network
     this.networkLayer = L.layerGroup(NETWORK_BUOYS.map(buoy => this.createNetworkBuoy(buoy, buoyLatLng)));
-    overlays[this.$i18n.t("ICATMAR buoys")] = this.networkLayer;
-    // The Patí Científic's temperature profiles of 2021-22, at its stations (see drawProfileStations)
-    this.profilesLayer = L.layerGroup().addTo(map);
-    overlays[this.$i18n.t("Patí Científic profiles")] = this.profilesLayer;
-    this.drawProfileStations();
-    // Ships from AIS, with their recent trails (see handleAISMessage)
+    // Ships from AIS and our vehicles, with their recent trails (see handleAISMessage)
     this.shipsLayer = L.layerGroup().addTo(map);
-    overlays[this.$i18n.t("Ships")] = this.shipsLayer;
-    L.control.layers(
+    // The Patí Científic's temperature profiles of 2021-22, at its stations (see drawProfileStations).
+    // Off at first: past data, not what is out there now
+    this.profilesLayer = L.layerGroup();
+    this.drawProfileStations();
+    // The layer list in groups (see GroupedLayers): what is out there now, the forecasts, the
+    // chart's layers, and the data of past projects and campaigns
+    const groups = [
+      ["now", { "Ships": this.shipsLayer, "ICATMAR buoys": this.networkLayer, "Wind rose": this.windRoseLayer }],
+      ["forecast", Object.fromEntries(Object.values(this.forecasts).map(forecast => [forecast.label, forecast.group]))],
+      ["chart", { "Isobaths": isobaths, "Nautical marks": seamarks }],
+      ["projects", { "Patí Científic profiles": this.profilesLayer }],
+    ];
+    const overlays = {};
+    const groupOf = new Map();
+    groups.forEach(([group, layers]) => Object.entries(layers).forEach(([label, layer]) => {
+      overlays[this.$i18n.t(label)] = layer;
+      groupOf.set(layer, this.$i18n.t(`mapLayers.${group}`));
+    }));
+    new GroupedLayers(
       { [this.$i18n.t("Light map")]: lightMap, [this.$i18n.t("Bathymetry")]: bathymetry },
       overlays,
-      { position: 'topright' }
+      { position: 'topright', groupOf },
     ).addTo(map);
     const forecastName = (layer) => Object.keys(this.forecasts).find(name => this.forecasts[name].group === layer);
     // The layer control fires overlayadd for the first addTo below too
@@ -1072,24 +1099,25 @@ export default {
   stroke-dasharray: 2 3;
 }
 /* PATÍ CIENTÍFIC: its stations, and the profile on their cards */
+/* Past data (a project or campaign): hollow, with a dashed edge, unlike what is out there now */
 .map-profile-station {
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #12a39a;
-  border: 2px solid white;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px dashed #12a39a;
   box-sizing: border-box;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 .map-profile-station span {
-  color: white;
+  color: #0e7f78;
   font-size: 0.65rem;
   font-weight: 700;
   text-shadow: none;
 }
 .map-profile-station.minor {
-  border-width: 1.5px;
+  border: 1.5px solid #12a39a;
   opacity: 0.85;
 }
 .map-profile-source {
@@ -1240,5 +1268,17 @@ export default {
   color: var(--darkBlue);
   text-shadow: none;
   font-size: 0.8rem;
+}
+/* A group's heading in the layer list (see GroupedLayers) */
+.map-layers-group {
+  margin: 8px 0 2px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.map-layers-group:first-child {
+  margin-top: 0;
 }
 </style>

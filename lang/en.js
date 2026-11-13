@@ -198,7 +198,15 @@ export default en = {
   "From Somorrostro": "From Somorrostro",
   "Show or hide legend": "Show or hide legend",
   "Centre on the buoy": "Centre on the buoy",
-  "Ships": "Ships",
+  "Ships": "Ships and vehicles",
+  // Headings of the map's layer list
+  mapLayers: {
+    now: "Now",
+    forecast: "Forecast",
+    chart: "Chart",
+    projects: "Projects and campaigns",
+  },
+
   "Cargo": "Cargo",
   "Tanker": "Tanker",
   "Passenger": "Passenger",
