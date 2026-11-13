@@ -1,6 +1,6 @@
 // Where the app gets what browsers can't get straight from ICATMAR's services: the buoys'
 // ERDDAP data (through a proxy) and the AIS ships. See boia_server.py and deploy/README.md.
-//  - Locally: dev_server.py's proxy and boia_server.py's AIS feed.
+//  - Locally: boia_server.py, running next to dev_server.py.
 //  - Published: the SIO's server once SIO_SERVER is set; until then, ICATMAR's own services,
 //    which only work on ICATMAR's website.
 
@@ -9,7 +9,7 @@ const SIO_SERVER = 'https://iot.icm.csic.es';
 
 const LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
 
-const PROXY_URL = LOCAL ? '/proxy/'
+const PROXY_URL = LOCAL ? `http://${location.hostname}:8767/proxy/`
   : SIO_SERVER ? `${SIO_SERVER}/proxy/`
   : 'https://api.icatmar.cat/proxy/';
 
