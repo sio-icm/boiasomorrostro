@@ -169,6 +169,16 @@ export default en = {
   "See on the fleet tracker": "See on the fleet tracker",
   "The fleet tracker is not available now": "The fleet tracker is not available now",
   "History": "History",
+  // The Patí Científic mode of the 3D view (see PatiTimeControl)
+  pati3d: {
+    buttonTitle: "Patí Científic 2021–22: the water column in 3D",
+    exitTitle: "Leave the Patí Científic and go back to now",
+    previous: "Previous campaign",
+    next: "Next campaign",
+    date: "Campaign date",
+    hint: "Tap a station to see its year",
+    inThreeD: "See in 3D",
+  },
   history: {
     pati: "Patí Científic 2021–22",
     station: "Station",
