@@ -178,7 +178,6 @@ export default es = {
     previous: "Campaña anterior",
     next: "Campaña siguiente",
     date: "Fecha de la campaña",
-    hint: "Toca una estación para ver su año",
     inThreeD: "Ver en 3D",
   },
   history: {

@@ -657,9 +657,10 @@ export default {
       element.querySelector('.map-profile-select')?.addEventListener('change', (e) => select(e, Number(e.target.value)));
       element.querySelector('.map-profile-prev')?.addEventListener('click', (e) => select(e, station.selected - 1));
       element.querySelector('.map-profile-next')?.addEventListener('click', (e) => select(e, station.selected + 1));
-      // The water columns of that date at all the stations, in the 3D view (see GUIManager.patiDate)
+      // Its water column that date, in the 3D view, down beside it (see GUIManager.patiDate)
       element.querySelector('.map-profile-3d')?.addEventListener('click', (e) => {
         e.stopPropagation();
+        this.$gui.patiStation = station.id;
         this.$gui.patiDate = station.profiles[station.selected].date;
       });
       // The station's water column over the year, in the history section (see WaterColumnChart)
