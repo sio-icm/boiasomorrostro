@@ -703,14 +703,43 @@ export default {
         // Over the markers (the buoy's own, at its last position, would hide it), under the cards
         this.map.createPane('aisTime').style.zIndex = 650;
         this.aisTrail = L.polyline([], { pane: 'aisTime', interactive: false, color: 'var(--darkBlue)', weight: 2, opacity: 0.8 });
+        // Tapped, its GPS position then (and it stops playing, to read it)
         this.aisNow = L.circleMarker([m.lat, m.lon], {
-          pane: 'aisTime', interactive: false, radius: 7, color: 'var(--darkBlue)', weight: 2, fillColor: '#f5c400', fillOpacity: 1,
-        });
+          pane: 'aisTime', radius: 7, color: 'var(--darkBlue)', weight: 2, fillColor: '#f5c400', fillOpacity: 1,
+          bubblingMouseEvents: false, // Not a click on the map (which turns the 3D camera)
+        }).bindPopup(() => this.aisNowCardHTML(), { className: 'map-popup', minWidth: 200 });
+        this.aisNow.on('click', () => this.stopAIS());
       }
       this.aisTimeControl.addTo(this.map);
       this.aisTrail.addTo(this.aisLayer);
       this.aisNow.addTo(this.aisLayer);
       this.setAISTime(Number(this.aisTimeControl.getContainer().querySelector('input').value));
+    },
+    // The card of the buoy on the time bar: its GPS position at that moment
+    aisNowCardHTML() {
+      const t = (key, values) => this.$i18n.t(key, values);
+      const track = this.aisTrack, k = this.aisIndex;
+      const [lat, lon] = this.aisTrackLatLng(k);
+      const date = new Date((track.start + track.i[k] * track.step) * 1000)
+        .toLocaleString(this.$i18n.locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      // Degrees and decimal minutes, as on a chart
+      const dm = (value, positive, negative) => {
+        const degrees = Math.floor(Math.abs(value)), minutes = (Math.abs(value) - degrees) * 60;
+        return `${degrees}° ${minutes.toLocaleString(this.$i18n.locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}′ ${value >= 0 ? positive : negative}`;
+      };
+      const decimal = (value) => value.toLocaleString(this.$i18n.locale, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+      const distance = Math.round(Math.hypot(track.e[k], track.n[k]) / 10);
+      return `<div class="map-card">
+        <div class="map-card-title">${t("buoyAIS.gpsTitle")}</div>
+        <div class="map-card-date">${date}</div>
+        <table class="map-card-table">
+          <tr><td>${t("buoyAIS.latitude")}</td><td>${dm(lat, 'N', 'S')}</td></tr>
+          <tr><td>${t("buoyAIS.longitude")}</td><td>${dm(lon, 'E', 'W')}</td></tr>
+          <tr><td></td><td>${decimal(lat)}, ${decimal(lon)}</td></tr>
+          <tr><td>${t("buoyAIS.centre")}</td><td>${distance < 1000 ? distance + ' m' : (distance / 1000).toFixed(1) + ' km'}</td></tr>
+        </table>
+        <div class="map-card-note">${t("buoyAIS.gpsNote")}</div>
+      </div>`;
     },
     hideAISTime() {
       this.stopAIS();
@@ -725,11 +754,12 @@ export default {
         const mid = (lo + hi + 1) >> 1;
         if (track.i[mid] <= step) lo = mid; else hi = mid - 1;
       }
-      const k = lo, stale = step - track.i[k] > 3600 / track.step;
+      const k = this.aisIndex = lo, stale = step - track.i[k] > 3600 / track.step;
       const trail = [];
       for (let j = k; j >= 0 && track.i[j] > step - AIS_TRAIL_STEPS; j--) trail.unshift(toLatLng(j));
       this.aisTrail.setLatLngs(stale ? [] : trail);
       this.aisNow.setLatLng(toLatLng(k)).setStyle({ fillColor: stale ? '#b0b8c0' : '#f5c400' });
+      if (this.aisNow.isPopupOpen()) this.aisNow.getPopup().setContent(this.aisNowCardHTML());
       const container = this.aisTimeControl.getContainer();
       container.querySelector('input').value = step;
       const date = new Date((track.start + step * track.step) * 1000)

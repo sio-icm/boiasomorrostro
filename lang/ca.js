@@ -212,6 +212,11 @@ export default ca = {
   "Ships": "Vaixells i vehicles",
   // Headings of the map's layer list
   buoyAIS: {
+    gpsTitle: "Posició GPS de la boia",
+    latitude: "Latitud",
+    longitude: "Longitud",
+    centre: "Del centre del fondeig",
+    gpsNote: "Mediana dels fixos de GPS del seu AIS en aquests 10 minuts",
     play: "Reproduir",
     time: "Moment",
     noData: "sense dades de l'AIS",
