@@ -316,8 +316,8 @@ export default {
     async loadWaveForecast(date = new Date()) {
       const variables = ['wave_height', 'wave_direction', 'wind_wave_height', 'wind_wave_direction', 'swell_wave_height',
         'swell_wave_direction', 'secondary_swell_wave_height', 'secondary_swell_wave_direction'];
-      const url = 'https://marine-api.open-meteo.com/v1/marine?latitude=' + (window.LATITUDE || 41.375694)
-        + '&longitude=' + (window.LONGITUDE || 2.216194) + '&hourly=' + variables.join(',') + '&past_days=3&forecast_days=3&timezone=UTC';
+      const url = 'https://marine-api.open-meteo.com/v1/marine?latitude=' + (window.LATITUDE || 41.37698)
+        + '&longitude=' + (window.LONGITUDE || 2.216858) + '&hourly=' + variables.join(',') + '&past_days=3&forecast_days=3&timezone=UTC';
       let hourly;
       try {
         hourly = (await (await window.FetchManager.fetch(url, 30)).json()).hourly;

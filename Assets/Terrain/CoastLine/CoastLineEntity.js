@@ -15,6 +15,8 @@ import { portAreaGLSL } from '/boiasomorrostro/Assets/Terrain/PortGround/PortGro
 // - each coarse tile goes down until its photographed water lies just above the sea.
 // Between NEAR and FAR both fade in, the cut-out dithered so it doesn't pop
 const NEAR = 1500, FAR = 3000; // m from the camera
+// Where the buoy was taken to be (its charted position) when the model was placed (see the constructor)
+const MODEL_ORIGIN = { lat: 41.375694, lon: 2.216194 };
 // m: the photographed water is only looked for under this height: in a coarse tile, a little over its
 // photographed water (see coarseTileDrop); in a detailed one, at the sea level, as its streets by
 // the sea (the Barceloneta's) lie at 0.5-1 m. Not higher: the streets and roofs in the shade are as
@@ -93,8 +95,13 @@ class CoastLineEntity {
       // GLTF scene
       const root = gltf.scene;
       this.root = root;
-      // Position correction
-      this.root.position.set(160, 0, -210);
+      // Position correction: the model was placed at (160, 0, -210) m from the buoy's charted
+      // position (MODEL_ORIGIN); from where the app puts the buoy (window.LATITUDE...), as much less
+      // east and more south as it is from there (x east, z south, as MovingVessel.toScene)
+      const R = 6371000, toRad = Math.PI / 180;
+      const east = (window.LONGITUDE - MODEL_ORIGIN.lon) * toRad * R * Math.cos(window.LATITUDE * toRad);
+      const north = (window.LATITUDE - MODEL_ORIGIN.lat) * toRad * R;
+      this.root.position.set(160 - east, 0, -210 + north);
       // Scale
       //root.scale.multiplyScalar(0.1);
       // Scene direction fix

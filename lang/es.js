@@ -218,7 +218,6 @@ export default es = {
     moored: "Posiciones del GPS de la boya desde que está fondeada ({since})",
     half: "La mitad del tiempo, del centro a",
     most: "El 90 % del tiempo, a",
-    fromApp: "Centro, del punto de la app",
     fromCharted: "Centro, de su posición de carta",
     period: "{count} mensajes del {from} al {to}, {fixes} con la posición de su GPS",
     gaps: "{n} cortes sin emitir; el más largo, de {days} días desde el {from}",

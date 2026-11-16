@@ -217,7 +217,6 @@ export default ca = {
     moored: "Posicions del GPS de la boia des que està fondejada ({since})",
     half: "La meitat del temps, del centre a",
     most: "El 90 % del temps, a",
-    fromApp: "Centre, del punt de l'app",
     fromCharted: "Centre, de la seva posició de carta",
     period: "{count} missatges del {from} al {to}, {fixes} amb la posició del seu GPS",
     gaps: "{n} talls sense emetre; el més llarg, de {days} dies des del {from}",
