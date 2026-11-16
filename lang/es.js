@@ -213,6 +213,11 @@ export default es = {
   "Ships": "Barcos y vehículos",
   // Headings of the map's layer list
   buoyAIS: {
+    play: "Reproducir",
+    time: "Momento",
+    noData: "sin datos del AIS",
+    fromCentre: "a {m} m del centro",
+    farFromCentre: "a {km} km del centro (en puerto)",
     layer: "AIS de la boya: dónde está y cómo bornea",
     title: "AIS de la boya",
     moored: "Posiciones del GPS de la boya desde que está fondeada ({since})",

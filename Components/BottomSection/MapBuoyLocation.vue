@@ -35,6 +35,11 @@ const GroupedLayers = L.Control.Layers.extend({
   },
 });
 
+// The buoy's AIS time bar (see showAISTime): its trail, and how fast it plays, in steps of its
+// track (10 min)
+const AIS_TRAIL_STEPS = 36; // 6 h
+const AIS_PLAY_STEPS = 6; // An hour a frame
+
 export default {
   name: "MapComponent",
 
@@ -169,6 +174,7 @@ export default {
     map.on('overlayadd', (e) => { const name = forecastName(e.layer); if (name) this.showForecast(name); });
     // The buoy's AIS: to its mooring, with its card
     map.on('overlayadd', (e) => { if (e.layer === this.aisLayer) this.showBuoyAIS(); });
+    map.on('overlayremove', (e) => { if (e.layer === this.aisLayer) this.hideAISTime(); });
     map.on('overlayremove', (e) => { const name = forecastName(e.layer); if (name) this.updateForecastControl(); });
     this.forecasts.wind.group.addTo(map);
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
@@ -240,6 +246,7 @@ export default {
   },
   unmounted() {
     document.removeEventListener('keydown', this.onMeasureKey);
+    this.stopAIS();
     // Stop loop
     if (this.intervalId) {
       clearInterval(this.intervalId);
@@ -658,12 +665,100 @@ export default {
     formatDay(day) {
       return new Date(day + 'T12:00:00Z').toLocaleDateString(this.$i18n.locale, { day: 'numeric', month: 'short', year: 'numeric' });
     },
-    // Turned on: to the mooring, with its card
+    // Turned on: to the mooring, with its card, and the time bar to see it move
     showBuoyAIS() {
       if (!this.aisMarker) return;
       const m = this.buoyAIS.mooring;
       this.map.fitBounds(L.latLng(m.lat, m.lon).toBounds(2.5 * m.p99 + 200), { maxZoom: 17 });
       setTimeout(() => this.aisMarker.openPopup(), 300);
+      this.showAISTime();
+    },
+    // THE TIME BAR: where the buoy was at each moment (its track, a position every 10 min, see
+    // tools/buoy_ais.py), with its trail of the last AIS_TRAIL_STEPS, and a button to play it
+    async showAISTime() {
+      this.aisTrack ??= await fetch('data/StaticData/buoy_ais_track.json').then(res => res.json()).catch(() => undefined);
+      const track = this.aisTrack;
+      if (!track || !this.map.hasLayer(this.aisLayer)) return;
+      const m = this.buoyAIS.mooring;
+      const toLatLng = (k) => [m.lat + track.n[k] / 10 / 111320, m.lon + track.e[k] / 10 / (111320 * Math.cos(m.lat * Math.PI / 180))];
+      this.aisTrackLatLng = toLatLng;
+      if (!this.aisTimeControl) {
+        this.aisTimeControl = L.control({ position: 'bottomleft' });
+        this.aisTimeControl.onAdd = () => {
+          const container = L.DomUtil.create('div', 'map-ais-time');
+          const last = track.i[track.i.length - 1];
+          container.innerHTML = `
+            <button class="map-ais-play" aria-label="${this.$i18n.t("buoyAIS.play")}">&#9654;</button>
+            <div class="map-ais-time-main">
+              <div class="map-ais-time-label"></div>
+              <input type="range" min="0" max="${last}" step="1" value="${last}" aria-label="${this.$i18n.t("buoyAIS.time")}">
+            </div>`;
+          L.DomEvent.disableClickPropagation(container);
+          L.DomEvent.disableScrollPropagation(container);
+          const slider = container.querySelector('input');
+          slider.addEventListener('input', () => { this.stopAIS(); this.setAISTime(Number(slider.value)); });
+          container.querySelector('.map-ais-play').addEventListener('click', () => this.aisPlaying ? this.stopAIS() : this.playAIS());
+          return container;
+        };
+        // Over the markers (the buoy's own, at its last position, would hide it), under the cards
+        this.map.createPane('aisTime').style.zIndex = 650;
+        this.aisTrail = L.polyline([], { pane: 'aisTime', interactive: false, color: 'var(--darkBlue)', weight: 2, opacity: 0.8 });
+        this.aisNow = L.circleMarker([m.lat, m.lon], {
+          pane: 'aisTime', interactive: false, radius: 7, color: 'var(--darkBlue)', weight: 2, fillColor: '#f5c400', fillOpacity: 1,
+        });
+      }
+      this.aisTimeControl.addTo(this.map);
+      this.aisTrail.addTo(this.aisLayer);
+      this.aisNow.addTo(this.aisLayer);
+      this.setAISTime(Number(this.aisTimeControl.getContainer().querySelector('input').value));
+    },
+    hideAISTime() {
+      this.stopAIS();
+      this.aisTimeControl?.remove();
+    },
+    // The buoy at a step of its track (step: STEP s since its start): at its last position up to
+    // then, and greyed out if that is older than an hour (it wasn't transmitting)
+    setAISTime(step) {
+      const track = this.aisTrack, toLatLng = this.aisTrackLatLng;
+      let lo = 0, hi = track.i.length - 1; // The last position at or before it
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (track.i[mid] <= step) lo = mid; else hi = mid - 1;
+      }
+      const k = lo, stale = step - track.i[k] > 3600 / track.step;
+      const trail = [];
+      for (let j = k; j >= 0 && track.i[j] > step - AIS_TRAIL_STEPS; j--) trail.unshift(toLatLng(j));
+      this.aisTrail.setLatLngs(stale ? [] : trail);
+      this.aisNow.setLatLng(toLatLng(k)).setStyle({ fillColor: stale ? '#b0b8c0' : '#f5c400' });
+      const container = this.aisTimeControl.getContainer();
+      container.querySelector('input').value = step;
+      const date = new Date((track.start + step * track.step) * 1000)
+        .toLocaleString(this.$i18n.locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const distance = Math.round(Math.hypot(track.e[k], track.n[k]) / 10);
+      container.querySelector('.map-ais-time-label').innerHTML = `<b>${date}</b> · ` + (stale ? this.$i18n.t("buoyAIS.noData")
+        : distance < 1000 ? this.$i18n.t("buoyAIS.fromCentre", { m: distance }) : this.$i18n.t("buoyAIS.farFromCentre", { km: (distance / 1000).toFixed(1) }));
+      this.aisStep = step;
+    },
+    // Plays it: AIS_PLAY_STEPS steps a frame (an hour: a day in under a second), from the start if at the end
+    playAIS() {
+      const last = this.aisTrack.i[this.aisTrack.i.length - 1];
+      if (this.aisStep >= last) this.setAISTime(0);
+      this.aisPlaying = true;
+      this.aisTimeControl.getContainer().querySelector('.map-ais-play').innerHTML = '&#10074;&#10074;';
+      const frame = () => {
+        if (!this.aisPlaying) return;
+        const step = Math.min(last, this.aisStep + AIS_PLAY_STEPS);
+        this.setAISTime(step);
+        if (step >= last) this.stopAIS();
+        else this.aisFrame = requestAnimationFrame(frame);
+      };
+      this.aisFrame = requestAnimationFrame(frame);
+    },
+    stopAIS() {
+      this.aisPlaying = false;
+      cancelAnimationFrame(this.aisFrame);
+      const button = this.aisTimeControl?.getContainer()?.querySelector('.map-ais-play');
+      if (button) button.innerHTML = '&#9654;';
     },
     buoyAISCardHTML() {
       const t = (key, values) => this.$i18n.t(key, values);
@@ -1137,6 +1232,44 @@ export default {
 .map-card {
   color: var(--darkBlue);
   font-size: 0.8rem;
+}
+.map-ais-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  padding: 6px 10px;
+  width: min(340px, calc(100vw - 40px));
+  box-sizing: border-box;
+  color: var(--darkBlue);
+  font-size: 0.72rem;
+}
+.map-ais-play {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: var(--darkBlue);
+  color: white;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.map-ais-time-main {
+  flex: 1;
+  min-width: 0;
+}
+.map-ais-time-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-ais-time-main input {
+  width: 100%;
+  margin: 2px 0 0;
+  accent-color: var(--darkBlue);
 }
 .map-ais-mooring {
   border-radius: 50%;

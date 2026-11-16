@@ -212,6 +212,11 @@ export default ca = {
   "Ships": "Vaixells i vehicles",
   // Headings of the map's layer list
   buoyAIS: {
+    play: "Reproduir",
+    time: "Moment",
+    noData: "sense dades de l'AIS",
+    fromCentre: "a {m} m del centre",
+    farFromCentre: "a {km} km del centre (a port)",
     layer: "AIS de la boia: on és i com borneja",
     title: "AIS de la boia",
     moored: "Posicions del GPS de la boia des que està fondejada ({since})",
