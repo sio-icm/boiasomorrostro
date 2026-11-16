@@ -1,6 +1,7 @@
 import { VesselEntity, TankerVesselEntity, CargoVesselEntity, CruiseBigEntity } from "./VesselEntity.js";
 import { PatiEntity } from "./PatiEntity.js";
 import { BlueBoatEntity } from "./BlueBoatEntity.js";
+import { ZodiacEntity } from "./ZodiacEntity.js";
 import { OwnMarker } from "./OwnMarker.js";
 
 // The AIS vessels in the 3D scene: one entity per ship (see AISManager), with a model by its
@@ -56,6 +57,7 @@ class AISVesselsManager {
   modelFor = (shipInfo) => {
     if (this.isPati(shipInfo)) return PatiEntity;
     if (this.isBlueBoat(shipInfo)) return BlueBoatEntity;
+    if (window.OwnAssets?.ownGroupOf(shipInfo.MMSI)?.model === 'zodiac') return ZodiacEntity; // Ours with AIS
     const type = Number(shipInfo.shipTypeId);
     if (type >= 70 && type <= 79) return CargoVesselEntity;
     if (type >= 80 && type <= 89) return TankerVesselEntity;
@@ -85,15 +87,16 @@ class AISVesselsManager {
   }
 
   createShip = (Model, shipInfo) => {
-    if (Model === PatiEntity || Model === BlueBoatEntity) {
-      const ship = new Model(this.scene, shipInfo, this.LONGITUDE, this.LATITUDE);
-      // Our vehicles, marked with a ring (see ownAssets.js)
-      if (window.OwnAssets?.ownGroupOf(shipInfo.MMSI)) ship.ownMarker = new OwnMarker(this.scene);
-      return ship;
+    let ship;
+    if (Model === PatiEntity || Model === BlueBoatEntity || Model === ZodiacEntity) {
+      ship = new Model(this.scene, shipInfo, this.LONGITUDE, this.LATITUDE); // Built, not loaded
+    } else {
+      ship = new Model(this.scene, shipInfo, () => ship.setReport(shipInfo));
+      ship.LONGITUDE = this.LONGITUDE;
+      ship.LATITUDE = this.LATITUDE;
     }
-    const ship = new Model(this.scene, shipInfo, () => ship.setReport(shipInfo));
-    ship.LONGITUDE = this.LONGITUDE;
-    ship.LATITUDE = this.LATITUDE;
+    // Our vehicles, marked with a ring (see ownAssets.js)
+    if (window.OwnAssets?.ownGroupOf(shipInfo.MMSI)) ship.ownMarker = new OwnMarker(this.scene);
     return ship;
   }
 

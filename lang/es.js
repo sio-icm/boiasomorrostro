@@ -149,6 +149,7 @@ export default es = {
   "Simulated": "Simulado",
   "BlueBoats": "BlueBoats",
   "Sailing dinghies": "Patines de vela",
+  "Boats": "Embarcaciones",
   "No data since": "Sin datos desde el",
   "Transmitting": "Transmitiendo",
   "Not transmitting": "Sin transmitir",
