@@ -35,7 +35,7 @@
 
 <script>
 // The .vue loader cannot import modules: ownAssets.js comes through main.js
-const { OWN_ASSETS, BUOY_LIVE_HOURS, isLive } = window.OwnAssets;
+const { OWN_ASSETS, BUOY_LIVE_HOURS, inGroup, ownGroupOf, isLive } = window.OwnAssets;
 
 export default {
   name: "OwnAssetsMenu",
@@ -67,7 +67,7 @@ export default {
     },
     // Only our vehicles' reports, and at most once a second
     onAISMessage(ship) {
-      if (!OWN_ASSETS.some(asset => asset.prefix && String(ship.MMSI).startsWith(asset.prefix))) return;
+      if (!ownGroupOf(ship.MMSI)) return;
       if (this.pending) return;
       this.pending = setTimeout(() => { this.pending = undefined; this.refresh(); }, 1000);
     },
@@ -95,7 +95,7 @@ export default {
     },
     // Vehicles: those reporting now, and (BlueBoats) those the fleet tracker knows, with their last data
     vehiclesGroup(asset) {
-      const ships = Object.values(window.AISManager?.ships || {}).filter(ship => String(ship.MMSI).startsWith(asset.prefix));
+      const ships = Object.values(window.AISManager?.ships || {}).filter(ship => inGroup(asset, ship.MMSI));
       const items = {};
       ships.forEach(ship => {
         const live = isLive(ship);

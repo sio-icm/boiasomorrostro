@@ -147,6 +147,7 @@ export default en = {
   "Simulated": "Simulated",
   "BlueBoats": "BlueBoats",
   "Sailing dinghies": "Sailing dinghies",
+  "Boats": "Boats",
   "No data since": "No data since",
   "Transmitting": "Transmitting",
   "Not transmitting": "Not transmitting",

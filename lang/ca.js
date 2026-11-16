@@ -148,6 +148,7 @@ export default ca = {
   "Simulated": "Simulat",
   "BlueBoats": "BlueBoats",
   "Sailing dinghies": "Patins de vela",
+  "Boats": "Embarcacions",
   "No data since": "Sense dades des del",
   "Transmitting": "Transmetent",
   "Not transmitting": "Sense transmetre",
