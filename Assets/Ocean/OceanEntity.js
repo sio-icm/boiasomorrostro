@@ -6,6 +6,9 @@ import { OceanGrid } from '/boiasomorrostro/Assets/Ocean/OceanGrid.js';
 import {OceanProjectedGridVertShader, OceanProjectedGridFragShader} from '/boiasomorrostro/Assets/Ocean/OceanProjectedGridShader.js';
 
 import { OceanParameters } from '/boiasomorrostro/Assets/Ocean/OceanParams.js';
+import { shelter, shelterGLSL } from '/boiasomorrostro/Assets/Ocean/shelteredWater.js';
+
+const SHELTERED_WAVES = 0.08; // As in OceanProjectedGridShader
 
 class OceanEntity {
 
@@ -119,7 +122,7 @@ class OceanEntity {
       u_cameraGridPosition: {value: this.gridEntity.cameraGrid.position},
       u_cameraViewportScale: {value: new THREE.Vector2(1, 1)},
     },
-    vertexShader: OceanProjectedGridVertShader,
+    vertexShader: OceanProjectedGridVertShader.replace('/* SHELTER */', '#define HAS_SHELTER\n' + shelterGLSL()), // Calm in the ports
     fragmentShader: OceanProjectedGridFragShader,
   });
 
@@ -312,6 +315,7 @@ class OceanEntity {
 
 
   getNormalAndPositionAt = function(position, normal){
+    const x = position.x, z = position.z;
 
     let calcNormal = this.getGerstnerNormal(position, 
       this.swellParameters[0], 
@@ -319,6 +323,12 @@ class OceanEntity {
 
     normal.set(calcNormal.x, calcNormal.y, calcNormal.z);
 
+    // In a port the waves fade out (as in the shader, see shelteredWater.js): the boats barely move
+    const waves = 1 - (1 - SHELTERED_WAVES) * shelter(x, z);
+    if (waves < 1) {
+      position.set(x + (position.x - x) * waves, position.y * waves, z + (position.z - z) * waves);
+      normal.set(normal.x * waves, 1 - (1 - normal.y) * waves, normal.z * waves).normalize();
+    }
   }
 
 
