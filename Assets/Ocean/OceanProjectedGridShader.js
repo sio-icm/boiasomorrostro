@@ -72,6 +72,13 @@ export const OceanProjectedGridVertShader = /* glsl */ `
   varying float v_height;
   // SSR
   varying float v_distToCam;
+  // How sheltered by a port's breakwaters (0 open sea, 1 inside): the waves fade out there
+  varying float v_shelter;
+  #define SHELTERED_WAVES 0.08 // Of the open sea's, well inside a port (as in OceanEntity)
+
+  // float shelter(vec2 p): put here by OceanEntity, from Assets/Ocean/shelteredWater.js, with
+  // HAS_SHELTER defined (without them, as in Assets/Ocean/index.js, no port is calm)
+  /* SHELTER */
 
 
   // Gerstner Wave
@@ -217,6 +224,17 @@ export const OceanProjectedGridVertShader = /* glsl */ `
     }
 
 
+    // In a port, the waves fade out: the surface back towards the flat plane
+    #ifdef HAS_SHELTER
+    v_shelter = shelter(intersectionPoint.xz);
+    #else
+    v_shelter = 0.0;
+    #endif
+    float waves = mix(1.0, SHELTERED_WAVES, v_shelter);
+    modPos = intersectionPoint + (modPos - intersectionPoint) * waves;
+    tangent = normalize(mix(vec3(1.0, 0.0, 0.0), tangent, waves));
+    binormal = normalize(mix(vec3(0.0, 0.0, 1.0), binormal, waves));
+
     // Normal
     vec3 normal = normalize(cross(binormal, tangent));
     v_Normal = normalize(normal.xyz);
@@ -259,6 +277,7 @@ export const OceanProjectedGridFragShader = /* glsl */`
   varying float v_height;
 
   varying float v_distToCam;
+  varying float v_shelter;
 
   uniform sampler2D u_normalTexture;
   uniform float u_time; // Same precision as in the vertex shader (required for shared uniforms)
@@ -326,6 +345,8 @@ export const OceanProjectedGridFragShader = /* glsl */`
     ripplesSlope *= mix(1.0, 0.45, smoothstep(25.0, 250.0, distance(v_WorldPosition, cameraPosition)));
     // Calm water is smoother, a strong wind roughens it
     ripplesSlope *= mix(0.55, 1.35, u_windStrength);
+    // In a port, sheltered from the waves, the water is smoother too
+    ripplesSlope *= mix(1.0, 0.5, v_shelter);
     // We are using Y as up, but for this calculation, Z must be used, as the multiplication in TBN follows this order:
     // Red(x) * tangent + Green(y) * bitangent + Blue (z) * normal
     // Probably I should change either the order in the TBN (e.g. tangent, normal, bitangent) or the order in the multiplication
