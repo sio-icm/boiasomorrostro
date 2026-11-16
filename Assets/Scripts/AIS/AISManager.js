@@ -102,7 +102,7 @@ export class AISManager {
 
 
     // Default values
-    let shipName = metaData.ShipName || this.ships[MMSI].shipName || "Unknown Ship";
+    let shipName = metaData.ShipName?.trim() || this.ships[MMSI].shipName || window.OwnAssets?.ownName(MMSI) || "Unknown Ship";
     const lat = metaData.latitude;
     const long = metaData.longitude;
 

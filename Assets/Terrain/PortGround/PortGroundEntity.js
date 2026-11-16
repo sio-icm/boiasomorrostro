@@ -1,20 +1,35 @@
 import * as THREE from 'three';
 
-// THE PORT'S GROUND, FROM THE ICGC ORTHOPHOTO
-// Google's photogrammetry of the port (CoastLine.glb) is blurry up close, and its cranes, container
-// stacks and ships come out as loose shards. So in the port it is hidden (see CoastLineEntity) and
-// replaced by this flat ground at quay height, textured with the ICGC orthophoto, its water made
-// transparent so the 3D sea and the ships show. Made by tools/orto_port.py, with half-size
-// copies (_small) for phones.
+// THE PORTS' GROUND, FROM THE ICGC ORTHOPHOTO
+// Google's photogrammetry of the ports (CoastLine.glb) is blurry up close: in the port of Barcelona
+// its cranes, container stacks and ships come out as loose shards, and in the Port Olímpic its
+// pontoons and breakwater as broken bits under the 3D sea. So in each port it is hidden (see
+// CoastLineEntity) and replaced by this flat ground at quay height, textured with the ICGC
+// orthophoto, its water made transparent so the 3D sea and the ships show. Made by
+// tools/orto_port.py, with half-size copies (_small) for phones.
 // Orthophoto: Institut Cartogràfic i Geològic de Catalunya (ICGC), CC BY 4.0
 
-// The orthophoto's box (keep in sync with tools/orto_port.py)
-const SOUTH = 41.315, NORTH = 41.3676, WEST = 2.125, EAST = 2.1886;
-const QUAY_HEIGHT = 2; // m above the sea
-// Where the port ends to the north-west: the railway and the Ronda Litoral at the foot of Montjuïc,
-// in pixels of a 928 x 1024 view of the orthophoto, west to east. Montjuïc and the city beyond it
-// keep Google's 3D model
-const EDGE_PIXELS = [[0, 440], [300, 345], [470, 290], [560, 200], [700, 0]];
+// Each port: its orthophoto's box and files (keep in sync with tools/orto_port.py), its quays'
+// height above the sea, and where in the box it is port, the rest keeping Google's 3D model:
+// - the port of Barcelona: south of an edge (the railway and the Ronda Litoral at the foot of
+//   Montjuïc), in pixels of a 928 x 1024 view of the orthophoto, west to east;
+// - the Port Olímpic: inside an outline (latitude, longitude) around its basin, pontoons and
+//   breakwater, leaving out its towers and the buildings around it.
+const AREAS = [
+  {
+    name: 'port', south: 41.315, north: 41.3676, west: 2.125, east: 2.1886, quayHeight: 2,
+    edgePixels: [[0, 440], [300, 345], [470, 290], [560, 200], [700, 0]],
+  },
+  {
+    name: 'olimpic', south: 41.3830, north: 41.3890, west: 2.1975, east: 2.2045, quayHeight: 1.5,
+    outline: [
+      [41.387242, 2.198359], [41.388385, 2.200234], [41.387330, 2.202578], [41.387740, 2.202969],
+      [41.388180, 2.203516], [41.387418, 2.203672], [41.385719, 2.202891], [41.384313, 2.201562],
+      [41.383844, 2.200781], [41.383375, 2.200625], [41.383375, 2.198906], [41.383727, 2.198828],
+      [41.384078, 2.199375], [41.385133, 2.200000], [41.385719, 2.199375], [41.386539, 2.198281],
+    ],
+  },
+];
 
 // Scene metres (x east, z south, from the buoy) of a latitude and longitude, as the ships (see MovingVessel)
 function toScene(latitude, longitude) {
@@ -25,27 +40,53 @@ function toScene(latitude, longitude) {
   };
 }
 
-// The box in scene metres. Computed when first needed: the buoy's position (window.LATITUDE...)
+// A port's box in scene metres. Computed when first needed: the buoy's position (window.LATITUDE...)
 // is set by main.js after the modules load
-function portBox() {
-  const corner = toScene(NORTH, WEST), opposite = toScene(SOUTH, EAST);
+function areaBox(area) {
+  const corner = toScene(area.north, area.west), opposite = toScene(area.south, area.east);
   return { west: corner.x, north: corner.z, east: opposite.x, south: opposite.z };
 }
 
-// GLSL: whether a point (scene x, z) is in the port. In the box, and south of the edge
-function portAreaGLSL() {
-  const box = portBox();
-  const edge = EDGE_PIXELS.map(([px, py]) => toScene(NORTH - py / 1024 * (NORTH - SOUTH), WEST + px / 928 * (EAST - WEST)));
-  const f = n => n.toFixed(1);
-  return `
-  bool inPortArea(vec2 p) {
-    if (p.x < ${f(box.west)} || p.x > ${f(box.east)} || p.y < ${f(box.north)} || p.y > ${f(box.south)}) return false;
+const f = n => n.toFixed(1);
+
+// GLSL: whether a point (scene x, z) is in a port (inPort_<name>), or in any (inPortArea)
+function areaGLSL(area) {
+  const box = areaBox(area);
+  const inBox = `if (p.x < ${f(box.west)} || p.x > ${f(box.east)} || p.y < ${f(box.north)} || p.y > ${f(box.south)}) return false;`;
+  if (area.edgePixels) {
+    // In the box, and south of the edge
+    const { north, south, west, east } = area;
+    const edge = area.edgePixels.map(([px, py]) => toScene(north - py / 1024 * (north - south), west + px / 928 * (east - west)));
+    return `
+  bool inPort_${area.name}(vec2 p) {
+    ${inBox}
     float edge = ${f(box.north)}; // East of the edge's last point, the whole width is port
     ${edge.slice(1).map((b, i) => {
       const a = edge[i];
       return `if (p.x <= ${f(b.x)}) edge = mix(${f(a.z)}, ${f(b.z)}, clamp((p.x - ${f(a.x)}) / ${f(b.x - a.x)}, 0.0, 1.0)); else`;
     }).join('\n    ')} {}
     return p.y > edge;
+  }`;
+  }
+  // In the box, and inside the outline (crossing its sides from the point, an odd number of times)
+  const points = area.outline.map(([latitude, longitude]) => toScene(latitude, longitude));
+  return `
+  bool inPort_${area.name}(vec2 p) {
+    ${inBox}
+    bool inside = false;
+    ${points.map((a, i) => {
+      const b = points[(i + 1) % points.length];
+      if (a.z === b.z) return '';
+      return `if ((${f(a.z)} > p.y) != (${f(b.z)} > p.y) && p.x < ${f(a.x)} + (p.y - ${f(a.z)}) * ${(b.x - a.x) / (b.z - a.z)}) inside = !inside;`;
+    }).filter(Boolean).join('\n    ')}
+    return inside;
+  }`;
+}
+
+function portAreaGLSL() {
+  return AREAS.map(areaGLSL).join('\n') + `
+  bool inPortArea(vec2 p) {
+    return ${AREAS.map(area => `inPort_${area.name}(p)`).join(' || ')};
   }`;
 }
 
@@ -56,32 +97,37 @@ function isPhone() {
 
 class PortGroundEntity {
   constructor(scene) {
-    // On phones, the half-size images: the full ones take some 80 MB of graphics memory
+    // On phones, the half-size images: the full ones of the port of Barcelona take some 80 MB of
+    // graphics memory
     const suffix = isPhone() ? '_small' : '';
     const loader = new THREE.TextureLoader();
-    const map = loader.load(`/boiasomorrostro/Assets/Terrain/PortGround/port${suffix}.jpg`);
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.anisotropy = 8;
-    const alphaMap = loader.load(`/boiasomorrostro/Assets/Terrain/PortGround/port_mask${suffix}.png`);
+    this.meshes = AREAS.map(area => {
+      const map = loader.load(`/boiasomorrostro/Assets/Terrain/PortGround/${area.name}${suffix}.jpg`);
+      map.colorSpace = THREE.SRGBColorSpace;
+      map.anisotropy = 8;
+      const alphaMap = loader.load(`/boiasomorrostro/Assets/Terrain/PortGround/${area.name}_mask${suffix}.png`);
 
-    const material = new THREE.MeshStandardMaterial({ map, alphaMap, alphaTest: 0.5, roughness: 1, metalness: 0 });
-    // Only the port: north-west of the edge it is Montjuïc and the city, from Google's model
-    material.onBeforeCompile = shader => {
-      shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vPortXZ;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPortXZ = (modelMatrix * vec4(transformed, 1.0)).xz;');
-      shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', `#include <common>\nvarying vec2 vPortXZ;\n${portAreaGLSL()}`)
-        .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\nif (!inPortArea(vPortXZ)) discard;');
-    };
+      const material = new THREE.MeshStandardMaterial({ map, alphaMap, alphaTest: 0.5, roughness: 1, metalness: 0 });
+      // Only the port: the rest of the box is Google's model
+      material.onBeforeCompile = shader => {
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec2 vPortXZ;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPortXZ = (modelMatrix * vec4(transformed, 1.0)).xz;');
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', `#include <common>\nvarying vec2 vPortXZ;\n${areaGLSL(area)}`)
+          .replace('#include <alphatest_fragment>', `#include <alphatest_fragment>\nif (!inPort_${area.name}(vPortXZ)) discard;`);
+      };
+      material.customProgramCacheKey = () => 'port-' + area.name;
 
-    const box = portBox();
-    const geometry = new THREE.PlaneGeometry(box.east - box.west, box.south - box.north);
-    geometry.rotateX(-Math.PI / 2); // The image's top to the north (-z)
-    this.mesh = new THREE.Mesh(geometry, material);
-    this.mesh.position.set((box.west + box.east) / 2, QUAY_HEIGHT, (box.north + box.south) / 2);
-    this.mesh.name = 'PortGround';
-    scene.add(this.mesh);
+      const box = areaBox(area);
+      const geometry = new THREE.PlaneGeometry(box.east - box.west, box.south - box.north);
+      geometry.rotateX(-Math.PI / 2); // The image's top to the north (-z)
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set((box.west + box.east) / 2, area.quayHeight, (box.north + box.south) / 2);
+      mesh.name = 'PortGround-' + area.name;
+      scene.add(mesh);
+      return mesh;
+    });
   }
 }
 
