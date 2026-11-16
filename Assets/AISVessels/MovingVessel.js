@@ -2,11 +2,16 @@ import * as THREE from 'three';
 
 // Movement shared by every vessel in the scene (see VesselEntity, PatiEntity). Placed at its first
 // AIS report, between reports it keeps sailing at its speed and heading, and eases towards each
-// new one; small boats also ride the waves. this.root is the vessel's 3D object, forward +X
+// new one; small boats also ride the waves. Only for a while after a report (DEAD_RECKONING): a
+// boat whose AIS is switched off (moored, its last report still under way) would sail on until
+// taken out of the scene, half an hour later, through the quays and inland. this.root is the vessel's 3D object, forward +X
 // (heading 90º, east), as the models.
 
 const KNOTS = 0.514444; // m/s
 const RIDES_WAVES_BELOW = 40; // m long: bigger ships barely move with these waves
+// s after a report that a vessel sails on with it: a Class B AIS (small boats) reports every 3 min
+// when slow, every 30 s when faster; Class A, every few seconds
+const DEAD_RECKONING = 180;
 
 class MovingVessel {
 
@@ -26,6 +31,9 @@ class MovingVessel {
     if (!isNaN(heading)) this.heading = heading;
     this.speed = (Number(shipInfo.sog) || 0) * KNOTS;
     this.length = shipInfo.length > 0 ? shipInfo.length : this.length;
+    // When it was reported (its own time, so an old report, coming when the page opens, doesn't sail)
+    const reported = Date.parse(shipInfo.lastTmst);
+    this.reportedAt = isNaN(reported) ? Date.now() : Math.min(reported, Date.now());
     if (this.root && !this.placed) {
       this.root.position.copy(this.target);
       this.root.rotation.y = -THREE.MathUtils.degToRad((this.heading || 0) - 90);
@@ -44,13 +52,15 @@ class MovingVessel {
       const diff = Math.atan2(Math.sin(goal - root.rotation.y), Math.cos(goal - root.rotation.y));
       root.rotation.y += diff * Math.min(1, dt * 1.5);
     }
-    // Sail on at its speed, and correct slowly towards the last reported position
+    // Sail on at its speed (for a while after the report), and correct slowly towards the last
+    // reported position
+    const speed = Date.now() - this.reportedAt < DEAD_RECKONING * 1000 ? this.speed : 0;
     const forward = new THREE.Vector3(Math.cos(root.rotation.y), 0, -Math.sin(root.rotation.y));
-    root.position.addScaledVector(forward, this.speed * dt);
+    root.position.addScaledVector(forward, speed * dt);
     const error = this.target.clone().sub(root.position).setY(0);
     if (error.length() > 300) root.position.x = this.target.x, root.position.z = this.target.z; // Too far off: jump
     else root.position.addScaledVector(error, Math.min(1, dt * 0.3));
-    this.target.addScaledVector(forward, this.speed * dt); // The report ages: it has sailed on since
+    this.target.addScaledVector(forward, speed * dt); // The report ages: it has sailed on since
 
     // Ride the waves (height only; PatiEntity also pitches and rolls)
     this.waveNormal = undefined;
