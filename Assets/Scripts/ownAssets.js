@@ -4,13 +4,15 @@
 // To add one, a line here: a buoy (always in the scene), or vehicles, known by the start of their
 // MMSI as boia_server.py relays them (prefix), or by their own MMSI if they have real AIS (mmsi).
 //   name: an i18n key; owner: shown on its card and in the menu; model: how the 3D scene draws them,
-//   if not by their AIS type (see AISVesselsManager.modelFor)
+//   if not by their AIS type (see AISVesselsManager.modelFor); names: by MMSI, until their AIS sends it
+//   (a position report comes without the name, and the static data, with it, only every few minutes)
 const OWN_ASSETS = [
   { id: 'buoy', kind: 'buoy', name: 'Somorrostro buoy', owner: 'ICM-CSIC · ICATMAR' },
   { id: 'blueboats', kind: 'vehicles', name: 'BlueBoats', owner: 'BlueLab · ICM-CSIC', prefix: 'BLUEBOAT-' },
   { id: 'patis', kind: 'vehicles', name: 'Sailing dinghies', prefix: 'PATI-' },
   // The Pelagia Primer: a red rigid inflatable (Zodiac) of 6 m, with its own AIS (see ZodiacEntity)
-  { id: 'boats', kind: 'vehicles', name: 'Boats', owner: 'ICM-CSIC', mmsi: ['224946750'], model: 'zodiac' },
+  { id: 'boats', kind: 'vehicles', name: 'Boats', owner: 'ICM-CSIC', mmsi: ['224946750'], model: 'zodiac',
+    names: { '224946750': 'PELAGIA PRIMER' } },
 ];
 
 // A vehicle is transmitting if its last position is this recent (as AISVesselsManager drops them)
@@ -28,9 +30,14 @@ function ownGroupOf(mmsi) {
   return OWN_ASSETS.find(asset => asset.kind === 'vehicles' && inGroup(asset, mmsi));
 }
 
+// Our vehicle's name, if we know it (see names), or undefined
+function ownName(mmsi) {
+  return ownGroupOf(mmsi)?.names?.[String(mmsi)];
+}
+
 // Whether a vehicle (AISManager's ship) is transmitting
 function isLive(ship) {
   return ship?.lastTmst != undefined && Date.now() - new Date(ship.lastTmst).getTime() < LIVE_MINUTES * 60000;
 }
 
-export { OWN_ASSETS, LIVE_MINUTES, BUOY_LIVE_HOURS, inGroup, ownGroupOf, isLive };
+export { OWN_ASSETS, LIVE_MINUTES, BUOY_LIVE_HOURS, inGroup, ownGroupOf, ownName, isLive };
