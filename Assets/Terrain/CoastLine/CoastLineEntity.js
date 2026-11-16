@@ -15,12 +15,17 @@ import { portAreaGLSL } from '/boiasomorrostro/Assets/Terrain/PortGround/PortGro
 // - each coarse tile goes down until its photographed water lies just above the sea.
 // Between NEAR and FAR both fade in, the cut-out dithered so it doesn't pop
 const NEAR = 1500, FAR = 3000; // m from the camera
-const WATER_MAX_HEIGHT = 12; // m: the photographed water is only looked for under it
+// m: the photographed water is only looked for under this height: in a coarse tile, a little over its
+// photographed water (see coarseTileDrop); in a detailed one, near the sea level. Not higher: the
+// city's streets and roofs in the shade are as dark and bluish, and were cut out too, showing the
+// 3D sea under the city (it was 12 m for every tile)
+const WATER_MARGIN = 1.5, DETAILED_WATER_MAX_HEIGHT = 2.5;
 const COARSE_RADIUS = 2000; // m: tiles this big are the coarse ones
 const COARSE_MAX_DISTANCE = 15000; // m from the buoy: further, the Earth's curvature already sinks them
 const WATER_LEVEL = 1; // m: where the photographed water of a coarse tile is left
 
 function photographedSeaShader(drop) {
+  const waterMax = drop > 0 ? drop + WATER_LEVEL + WATER_MARGIN : DETAILED_WATER_MAX_HEIGHT;
   return shader => {
     shader.uniforms.u_coastDrop = { value: drop };
     shader.vertexShader = shader.vertexShader
@@ -45,7 +50,7 @@ function photographedSeaShader(drop) {
       .replace('#include <map_fragment>', `#include <map_fragment>
         // The port is the orthophoto's (see PortGroundEntity)
         if (inPortArea(vCoastXZ)) discard;
-        if (vCoastHeight < ${WATER_MAX_HEIGHT.toFixed(1)}) {
+        if (vCoastHeight < ${waterMax.toFixed(1)}) {
           vec3 c = diffuseColor.rgb; // Linear colour of the photo
           // Water: dark, bluer than red, and blue at least close to green (teal); not grey, not vegetation
           bool water = c.b > c.r + 0.03 && c.b > c.g * 0.75 && max(c.g, c.b) < 0.45;
