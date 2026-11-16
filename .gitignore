@@ -3,3 +3,6 @@
 
 # Local copy of the buoys ERDDAP data (SQLite, see erddap_mirror.py)
 erddap_mirror.sqlite*
+
+# The buoy's AIS history (SQLite, see tools/buoy_ais.py)
+ais_history.sqlite*

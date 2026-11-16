@@ -212,10 +212,24 @@ export default es = {
   "Centre on the buoy": "Centrar en la boya",
   "Ships": "Barcos y vehículos",
   // Headings of the map's layer list
+  buoyAIS: {
+    layer: "AIS de la boya: dónde está y cómo bornea",
+    title: "AIS de la boya",
+    moored: "Posiciones del GPS de la boya desde que está fondeada ({since})",
+    half: "La mitad del tiempo, del centro a",
+    most: "El 90 % del tiempo, a",
+    fromApp: "Centro, del punto de la app",
+    fromCharted: "Centro, de su posición de carta",
+    period: "{count} mensajes del {from} al {to}, {fixes} con la posición de su GPS",
+    gaps: "{n} cortes sin emitir; el más largo, de {days} días desde el {from}",
+    legend: "Naranja: dónde ha estado más tiempo. Círculos: la mitad y el 90 % del tiempo. Gris: su posición cada día (los primeros meses, el AIS estaba en el Port Olímpic)",
+    source: "Datos: base de datos AIS TUGEMI (UPC)",
+  },
   mapLayers: {
     now: "Ahora",
     forecast: "Predicción",
     chart: "Cartografía",
+    buoy: "La boya",
     projects: "Proyectos y campañas",
   },
 

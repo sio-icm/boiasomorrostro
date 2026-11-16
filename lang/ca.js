@@ -211,10 +211,24 @@ export default ca = {
   "Centre on the buoy": "Centrar a la boia",
   "Ships": "Vaixells i vehicles",
   // Headings of the map's layer list
+  buoyAIS: {
+    layer: "AIS de la boia: on és i com borneja",
+    title: "AIS de la boia",
+    moored: "Posicions del GPS de la boia des que està fondejada ({since})",
+    half: "La meitat del temps, del centre a",
+    most: "El 90 % del temps, a",
+    fromApp: "Centre, del punt de l'app",
+    fromCharted: "Centre, de la seva posició de carta",
+    period: "{count} missatges del {from} al {to}, {fixes} amb la posició del seu GPS",
+    gaps: "{n} talls sense emetre; el més llarg, de {days} dies des del {from}",
+    legend: "Taronja: on ha estat més temps. Cercles: la meitat i el 90 % del temps. Gris: la seva posició cada dia (els primers mesos, l'AIS era al Port Olímpic)",
+    source: "Dades: base de dades AIS TUGEMI (UPC)",
+  },
   mapLayers: {
     now: "Ara",
     forecast: "Predicció",
     chart: "Cartografia",
+    buoy: "La boia",
     projects: "Projectes i campanyes",
   },
 

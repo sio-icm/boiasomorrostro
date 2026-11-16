@@ -140,12 +140,17 @@ export default {
     // Off at first: past data, not what is out there now
     this.profilesLayer = L.layerGroup();
     this.drawProfileStations();
+    // The buoy's AIS history: where it really is and how it swings on its mooring (see drawBuoyAIS).
+    // Off at first, as the profiles
+    this.aisLayer = L.layerGroup();
+    this.drawBuoyAIS();
     // The layer list in groups (see GroupedLayers): what is out there now, the forecasts, the
     // chart's layers, and the data of past projects and campaigns
     const groups = [
       ["now", { "Ships": this.shipsLayer, "ICATMAR buoys": this.networkLayer, "Wind rose": this.windRoseLayer }],
       ["forecast", Object.fromEntries(Object.values(this.forecasts).map(forecast => [forecast.label, forecast.group]))],
       ["chart", { "Isobaths": isobaths, "Nautical marks": seamarks }],
+      ["buoy", { "buoyAIS.layer": this.aisLayer }],
       ["projects", { "Patí Científic profiles": this.profilesLayer }],
     ];
     const overlays = {};
@@ -162,6 +167,8 @@ export default {
     const forecastName = (layer) => Object.keys(this.forecasts).find(name => this.forecasts[name].group === layer);
     // The layer control fires overlayadd for the first addTo below too
     map.on('overlayadd', (e) => { const name = forecastName(e.layer); if (name) this.showForecast(name); });
+    // The buoy's AIS: to its mooring, with its card
+    map.on('overlayadd', (e) => { if (e.layer === this.aisLayer) this.showBuoyAIS(); });
     map.on('overlayremove', (e) => { const name = forecastName(e.layer); if (name) this.updateForecastControl(); });
     this.forecasts.wind.group.addTo(map);
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
@@ -613,6 +620,75 @@ export default {
       return `<div class="map-card"><div class="map-card-title">${t("Buoy")} ${buoy.name}</div>${body}
         <div class="map-card-date">${t("From Somorrostro")}: ${buoy.distance}</div></div>`;
     },
+    // THE BUOY'S AIS: its positions as an aid to navigation, from the UPC's TUGEMI database
+    // (tools/buoy_ais.py, data/StaticData/buoy_ais.json). Its GPS fixes since it is moored, as
+    // squares coloured by how often it was there; circles with the distance it keeps within half
+    // and 90 % of the time; and its mooring, with a card. Each day's position, small and grey: the
+    // first months, while the AIS was in the Port Olímpic
+    async drawBuoyAIS() {
+      let data;
+      try {
+        data = this.buoyAIS = await fetch('data/StaticData/buoy_ais.json').then(res => res.json());
+      } catch (error) {
+        console.warn("Buoy's AIS history not loaded:", error);
+        return;
+      }
+      const m = data.mooring;
+      const toLatLng = (east, north) => [m.lat + north / 111320, m.lon + east / (111320 * Math.cos(m.lat * Math.PI / 180))];
+      const renderer = L.canvas({ padding: 0.2 });
+      // Darker where it spent more time (log scale: most squares were visited only a few times)
+      const most = Math.log(Math.max(...data.cells.map(c => c[2])) + 1);
+      data.cells.forEach(([east, north, n]) => {
+        const f = Math.log(n + 1) / most;
+        L.rectangle([toLatLng(east, north), toLatLng(east + data.cell, north + data.cell)], {
+          renderer, interactive: false, stroke: false, fillColor: '#e8590c', fillOpacity: 0.12 + 0.78 * f,
+        }).addTo(this.aisLayer);
+      });
+      [m.p50, m.p90].forEach((radius, i) => L.circle([m.lat, m.lon], {
+        renderer, radius, interactive: false, fill: false, color: 'var(--darkBlue)', weight: i ? 1 : 1.5, dashArray: i ? '4 4' : null,
+      }).addTo(this.aisLayer));
+      data.days.forEach(([day, lat, lon]) => L.circleMarker([lat, lon], {
+        renderer, radius: 2.5, stroke: false, fillColor: '#6b7a8a', fillOpacity: 0.7,
+      }).bindTooltip(this.formatDay(day)).addTo(this.aisLayer));
+      this.aisMarker = L.marker([m.lat, m.lon], {
+        icon: L.divIcon({ className: 'map-ais-mooring', iconSize: [14, 14], html: '' }),
+      }).bindPopup(() => this.buoyAISCardHTML(), { className: 'map-popup', minWidth: 230, maxWidth: 270 })
+        .addTo(this.aisLayer);
+    },
+    formatDay(day) {
+      return new Date(day + 'T12:00:00Z').toLocaleDateString(this.$i18n.locale, { day: 'numeric', month: 'short', year: 'numeric' });
+    },
+    // Turned on: to the mooring, with its card
+    showBuoyAIS() {
+      if (!this.aisMarker) return;
+      const m = this.buoyAIS.mooring;
+      this.map.fitBounds(L.latLng(m.lat, m.lon).toBounds(2.5 * m.p99 + 200), { maxZoom: 17 });
+      setTimeout(() => this.aisMarker.openPopup(), 300);
+    },
+    buoyAISCardHTML() {
+      const t = (key, values) => this.$i18n.t(key, values);
+      const data = this.buoyAIS, m = data.mooring;
+      const metres = (a, b) => Math.round(L.latLng(a.lat, a.lon).distanceTo(L.latLng(b.lat, b.lon)));
+      const day = (iso) => this.formatDay(iso.slice(0, 10));
+      const longest = data.gaps.map(([a, b]) => ({ a, b, days: (Date.parse(b) - Date.parse(a)) / 86400e3 })).sort((x, y) => y.days - x.days)[0];
+      const app = { lat: window.LATITUDE, lon: window.LONGITUDE };
+      const number = (n) => n.toLocaleString(this.$i18n.locale);
+      return `<div class="map-card">
+        <div class="map-card-title">${t("buoyAIS.title")} <span class="map-profile-source">· ${data.name}</span></div>
+        <div class="map-card-note">${t("buoyAIS.moored", { since: this.formatDay(m.since) })}</div>
+        <table class="map-card-table">
+          <tr><td>${t("buoyAIS.half")}</td><td>&lt; ${m.p50} m</td></tr>
+          <tr><td>${t("buoyAIS.most")}</td><td>&lt; ${m.p90} m</td></tr>
+          <tr><td>${t("buoyAIS.fromApp")}</td><td>${metres(m, app)} m</td></tr>
+          ${data.charted ? `<tr><td>${t("buoyAIS.fromCharted")}</td><td>${metres(m, data.charted)} m</td></tr>` : ''}
+          <tr><td>MMSI</td><td>${data.mmsi}</td></tr>
+        </table>
+        <div class="map-card-note">${t("buoyAIS.period", { from: day(data.first), to: day(data.last), count: number(data.count), fixes: number(data.fixes) })}</div>
+        ${longest ? `<div class="map-card-note">${t("buoyAIS.gaps", { n: data.gaps.length, days: Math.round(longest.days), from: day(longest.a) })}</div>` : ''}
+        <div class="map-card-note">${t("buoyAIS.legend")}</div>
+        <a class="map-card-link" href="https://ais.fnb.upc.edu/database/multi-info" target="_blank" rel="noopener">${t("buoyAIS.source")} &#8599;</a>
+      </div>`;
+    },
     // PATÍ CIENTÍFIC: its temperature profiles of 2021-22, exported once from the old IoT project
     // (tools/export_pati_cientific.py). A station's card shows one of them, chosen by date, over
     // the station's others in grey, on the same axes: how the water column changes over the year
@@ -1063,6 +1139,12 @@ export default {
 .map-card {
   color: var(--darkBlue);
   font-size: 0.8rem;
+}
+.map-ais-mooring {
+  border-radius: 50%;
+  background: white;
+  border: 3px solid var(--darkBlue);
+  box-sizing: border-box;
 }
 .map-card-title {
   font-weight: 600;
