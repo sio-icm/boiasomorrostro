@@ -6,10 +6,12 @@ import es from '/boiasomorrostro/lang/es.js';
 
 
 // Location
-// Where the buoy really is: the centre of its GPS positions on its AIS since it was moored
-// (see tools/buoy_ais.py; 150 m NNE of its charted position, 41.375694, 2.216194)
-window.LONGITUDE = 2.216858;
-window.LATITUDE = 41.37698;
+// Where the buoy is: its last known position, from the GPS fixes of its AIS (written by
+// tools/buoy_ais.py with each download of its history; its charted position, 41.375694, 2.216194,
+// is some 150 m off)
+import BUOY_POSITION from '/boiasomorrostro/data/StaticData/buoy_position.js';
+window.LONGITUDE = BUOY_POSITION.lon;
+window.LATITUDE = BUOY_POSITION.lat;
 window.CMEMS_LONGITUDE = 2.207;
 window.CMEMS_LATITUDE = 41.373;
 
