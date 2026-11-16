@@ -210,10 +210,24 @@ export default en = {
   "Centre on the buoy": "Centre on the buoy",
   "Ships": "Ships and vehicles",
   // Headings of the map's layer list
+  buoyAIS: {
+    layer: "Buoy's AIS: where it is and how it swings",
+    title: "Buoy's AIS",
+    moored: "The buoy's GPS positions since it is moored ({since})",
+    half: "Half the time, from the centre within",
+    most: "90 % of the time, within",
+    fromApp: "Centre, from the app's point",
+    fromCharted: "Centre, from its charted position",
+    period: "{count} messages from {from} to {to}, {fixes} with its GPS position",
+    gaps: "{n} breaks without transmitting; the longest, {days} days from {from}",
+    legend: "Orange: where it spent most time. Circles: half and 90 % of the time. Grey: its position each day (the first months, the AIS was in the Port Olímpic)",
+    source: "Data: TUGEMI AIS database (UPC)",
+  },
   mapLayers: {
     now: "Now",
     forecast: "Forecast",
     chart: "Chart",
+    buoy: "The buoy",
     projects: "Projects and campaigns",
   },
 
