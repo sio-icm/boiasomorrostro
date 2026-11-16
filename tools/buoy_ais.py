@@ -18,6 +18,12 @@ tell where it is and how it swings:
   cells    how many positions in each CELL x CELL m around the mooring, since then: [east, north, n]
   days     its median position each day, all of them (its deployment from the Port Olímpic): [date, lat, lon, n]
   gaps     when it didn't transmit for more than GAP_HOURS: [from, to] (ISO, UTC)
+  position its last known position: the median of its GPS fixes of the last LAST_MINUTES before
+           the last one (one fix alone may be a bad one)
+And data/StaticData/buoy_ais_track.json, how it moves, for the map's time bar: a position every
+STEP s (the median of the GPS fixes in it; none, no position), as whole decimetres east and north
+of the mooring: {start, step, lat, lon, i: [step number...], e: [...], n: [...]}
+And data/StaticData/buoy_position.js, its last known position, where the app puts the buoy (main.js).
 
 Usage: python3 tools/buoy_ais.py [file.csv ...]   (no files: only writes the JSON again)
 """
@@ -34,12 +40,16 @@ from datetime import datetime, timezone
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 DB = os.environ.get('AIS_HISTORY') or os.path.join(ROOT, 'ais_history.sqlite')
 OUT = os.path.join(ROOT, 'data', 'StaticData', 'buoy_ais.json')
+TRACK = os.path.join(ROOT, 'data', 'StaticData', 'buoy_ais_track.json')
+POSITION = os.path.join(ROOT, 'data', 'StaticData', 'buoy_position.js')
 MMSI = 992241239
 MOORING_DAYS = 30
 MOORED_WITHIN = 500  # m: a day whose median position is this close to the mooring, out there
 OUTLIER = 400  # m from the mooring: a bad GPS fix (some are kilometres off)
 CELL = 5  # m
 GAP_HOURS = 6
+LAST_MINUTES = 60
+STEP = 600  # s
 
 
 def connect():
@@ -140,8 +150,29 @@ def export(db):
         'days': days,
         'gaps': gaps,
     }
+    # Its last known position
+    latest = [row for row in rows if row[0] > last - LAST_MINUTES * 60]
+    data['position'] = {'time': iso(last), 'lat': round(statistics.median(row[1] for row in latest), 6),
+                    'lon': round(statistics.median(row[2] for row in latest), 6)}
     with open(OUT, 'w') as file:
         json.dump(data, file, separators=(',', ':'))
+    with open(POSITION, 'w') as file:
+        file.write("// Written by tools/buoy_ais.py: the buoy's last known position, from its AIS (GPS fixes)\n"
+                   f"export default {json.dumps(data['position'])};\n")
+
+    # How it moves: a position every STEP s
+    start = rows[0][0] - rows[0][0] % STEP
+    steps = defaultdict(list)
+    for t, lat, lon, _ in rows:
+        steps[(t - start) // STEP].append(metres(lat, lon, lat0, lon0))
+    track = {'start': start, 'step': STEP, 'lat': data['mooring']['lat'], 'lon': data['mooring']['lon'], 'i': [], 'e': [], 'n': []}
+    for i, positions in sorted(steps.items()):
+        track['i'].append(i)
+        track['e'].append(round(statistics.median(p[0] for p in positions) * 10))
+        track['n'].append(round(statistics.median(p[1] for p in positions) * 10))
+    with open(TRACK, 'w') as file:
+        json.dump(track, file, separators=(',', ':'))
+    data['track'] = len(track['i'])
     return data
 
 
@@ -154,4 +185,6 @@ if __name__ == '__main__':
     m = data['mooring']
     print(f"{data['count']} positions, {data['first']} to {data['last']}; moored at {m['lat']}, {m['lon']} "
           f"since {m['since']}, swinging p50 {m['p50']} m, p90 {m['p90']} m ({m['outliers']} bad fixes left out); "
-          f"{len(data['cells'])} cells, {len(data['gaps'])} gaps; {os.path.getsize(OUT) // 1024} KB")
+          f"{len(data['cells'])} cells, {len(data['gaps'])} gaps; {os.path.getsize(OUT) // 1024} KB; "
+          f"last at {data['position']['lat']}, {data['position']['lon']} ({data['position']['time']}); "
+          f"track of {data['track']} steps, {os.path.getsize(TRACK) // 1024} KB")

@@ -66,7 +66,9 @@ python3 tools/buoy_ais.py ~/Descargas/vessel_info_992241239_*.csv
 ```
 
 Lo añade a `ais_history.sqlite` (fuera de git; las filas repetidas no se duplican) y vuelve a
-escribir `data/StaticData/buoy_ais.json`, que es lo que usa el mapa (capa «AIS de la boya»). Después
+escribir, en `data/StaticData/`: `buoy_ais.json` y `buoy_ais_track.json` (la capa «AIS de la boya»
+del mapa y su barra de tiempo) y `buoy_position.js`, su última posición conocida, que es donde la
+app pone la boya. Después
 se sube la web como siempre y, de copia, la base de datos al servidor:
 
 ```bash

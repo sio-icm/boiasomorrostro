@@ -211,6 +211,11 @@ export default en = {
   "Ships": "Ships and vehicles",
   // Headings of the map's layer list
   buoyAIS: {
+    play: "Play",
+    time: "Time",
+    noData: "no AIS data",
+    fromCentre: "{m} m from the centre",
+    farFromCentre: "{km} km from the centre (in port)",
     layer: "Buoy's AIS: where it is and how it swings",
     title: "Buoy's AIS",
     moored: "The buoy's GPS positions since it is moored ({since})",
