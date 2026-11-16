@@ -216,7 +216,6 @@ export default en = {
     moored: "The buoy's GPS positions since it is moored ({since})",
     half: "Half the time, from the centre within",
     most: "90 % of the time, within",
-    fromApp: "Centre, from the app's point",
     fromCharted: "Centre, from its charted position",
     period: "{count} messages from {from} to {to}, {fixes} with its GPS position",
     gaps: "{n} breaks without transmitting; the longest, {days} days from {from}",

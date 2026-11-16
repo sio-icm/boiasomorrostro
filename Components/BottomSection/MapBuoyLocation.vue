@@ -39,7 +39,7 @@ export default {
   name: "MapComponent",
 
   mounted() {
-    const buoyLatLng = [window.LATITUDE || 41.375694, window.LONGITUDE || 2.216194];
+    const buoyLatLng = [window.LATITUDE || 41.37698, window.LONGITUDE || 2.216858];
 
     // Ensure Leaflet is available globally via the script tag.
     // Zoom buttons go top-right: top-left is taken by the panel's close/fullscreen buttons
@@ -671,7 +671,6 @@ export default {
       const metres = (a, b) => Math.round(L.latLng(a.lat, a.lon).distanceTo(L.latLng(b.lat, b.lon)));
       const day = (iso) => this.formatDay(iso.slice(0, 10));
       const longest = data.gaps.map(([a, b]) => ({ a, b, days: (Date.parse(b) - Date.parse(a)) / 86400e3 })).sort((x, y) => y.days - x.days)[0];
-      const app = { lat: window.LATITUDE, lon: window.LONGITUDE };
       const number = (n) => n.toLocaleString(this.$i18n.locale);
       return `<div class="map-card">
         <div class="map-card-title">${t("buoyAIS.title")} <span class="map-profile-source">· ${data.name}</span></div>
@@ -679,7 +678,6 @@ export default {
         <table class="map-card-table">
           <tr><td>${t("buoyAIS.half")}</td><td>&lt; ${m.p50} m</td></tr>
           <tr><td>${t("buoyAIS.most")}</td><td>&lt; ${m.p90} m</td></tr>
-          <tr><td>${t("buoyAIS.fromApp")}</td><td>${metres(m, app)} m</td></tr>
           ${data.charted ? `<tr><td>${t("buoyAIS.fromCharted")}</td><td>${metres(m, data.charted)} m</td></tr>` : ''}
           <tr><td>MMSI</td><td>${data.mmsi}</td></tr>
         </table>

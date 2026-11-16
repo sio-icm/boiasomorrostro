@@ -9,8 +9,8 @@
 // CSS (see style.css); this file loads the data and lays the rings out.
 
 // Buoy location, same values as the main app's main.js
-const LATITUDE = 41.375694;
-const LONGITUDE = 2.216194;
+const LATITUDE = 41.37698;
+const LONGITUDE = 2.216858;
 
 const PROXY_URL = 'https://api.icatmar.cat/proxy/';
 const ERDDAP = {
