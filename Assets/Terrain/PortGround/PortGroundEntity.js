@@ -13,20 +13,22 @@ import * as THREE from 'three';
 // height above the sea, and where in the box it is port, the rest keeping Google's 3D model:
 // - the port of Barcelona: south of an edge (the railway and the Ronda Litoral at the foot of
 //   Montjuïc), in pixels of a 928 x 1024 view of the orthophoto, west to east;
-// - the Port Olímpic: inside an outline (latitude, longitude) around its basin, pontoons and
-//   breakwater, leaving out its towers and the buildings around it.
+// - the Port Olímpic: inside an outline (latitude, longitude) around its basin, pontoons, quays,
+//   the low buildings on its north quay and its breakwater, leaving out its towers. Google's
+//   model of its quays and promenade lies at sea level and under it: the 3D sea covered them.
 const AREAS = [
   {
     name: 'port', south: 41.315, north: 41.3676, west: 2.125, east: 2.1886, quayHeight: 2,
     edgePixels: [[0, 440], [300, 345], [470, 290], [560, 200], [700, 0]],
   },
   {
-    name: 'olimpic', south: 41.3830, north: 41.3890, west: 2.1975, east: 2.2045, quayHeight: 1.5,
+    name: 'olimpic', south: 41.3830, north: 41.3897, west: 2.1975, east: 2.2045, quayHeight: 1.5,
     outline: [
-      [41.387242, 2.198359], [41.388385, 2.200234], [41.387330, 2.202578], [41.387740, 2.202969],
-      [41.388180, 2.203516], [41.387418, 2.203672], [41.385719, 2.202891], [41.384313, 2.201562],
-      [41.383844, 2.200781], [41.383375, 2.200625], [41.383375, 2.198906], [41.383727, 2.198828],
-      [41.384078, 2.199375], [41.385133, 2.200000], [41.385719, 2.199375], [41.386539, 2.198281],
+      [41.387236, 2.198354], [41.388856, 2.199231], [41.389168, 2.200000], [41.389432, 2.200769],
+      [41.388136, 2.202262], [41.388160, 2.203000], [41.388184, 2.203523], [41.387416, 2.203677],
+      [41.385724, 2.202892], [41.384308, 2.201569], [41.383840, 2.200785], [41.383372, 2.200631],
+      [41.383372, 2.198908], [41.383732, 2.198831], [41.384080, 2.199369], [41.385136, 2.200000],
+      [41.385724, 2.199369], [41.386540, 2.198277],
     ],
   },
 ];

@@ -15,7 +15,7 @@ AREAS = {
     'port': dict(box=(41.315, 41.3676, 2.125, 2.1886), size=(3712, 4096), opening=2, land=3000, water=6000),
     # ~0.33 m a pixel: the pontoons (a few metres wide) and the moored boats stay
     # Its basin, sheltered, is dark grey-green rather than blue: water too, below `dark`
-    'olimpic': dict(box=(41.3830, 41.3890, 2.1975, 2.2045), size=(1792, 2048), opening=1, land=150, water=3000, dark=110),
+    'olimpic': dict(box=(41.3830, 41.3897, 2.1975, 2.2045), size=(1792, 2288), opening=1, land=150, water=3000, dark=110),
 }
 name, out = (sys.argv[1], sys.argv[2]) if len(sys.argv) > 2 else ('port', sys.argv[1])
 area = AREAS[name]
