@@ -16,10 +16,10 @@ import { portAreaGLSL } from '/boiasomorrostro/Assets/Terrain/PortGround/PortGro
 // Between NEAR and FAR both fade in, the cut-out dithered so it doesn't pop
 const NEAR = 1500, FAR = 3000; // m from the camera
 // m: the photographed water is only looked for under this height: in a coarse tile, a little over its
-// photographed water (see coarseTileDrop); in a detailed one, near the sea level. Not higher: the
-// city's streets and roofs in the shade are as dark and bluish, and were cut out too, showing the
-// 3D sea under the city (it was 12 m for every tile)
-const WATER_MARGIN = 1.5, DETAILED_WATER_MAX_HEIGHT = 2.5;
+// photographed water (see coarseTileDrop); in a detailed one, at the sea level, as its streets by
+// the sea (the Barceloneta's) lie at 0.5-1 m. Not higher: the streets and roofs in the shade are as
+// dark and bluish, and were cut out too, showing the 3D sea under the city (it was 12 m for every tile)
+const WATER_MARGIN = 1.5, DETAILED_WATER_MAX_HEIGHT = 0.3;
 const COARSE_RADIUS = 2000; // m: tiles this big are the coarse ones
 const COARSE_MAX_DISTANCE = 15000; // m from the buoy: further, the Earth's curvature already sinks them
 const WATER_LEVEL = 1; // m: where the photographed water of a coarse tile is left
