@@ -54,6 +54,25 @@ la red. Así, si un ERDDAP falla o deja de listar las boyas un tiempo, la web si
 - Para empezar de cero, parar el servicio, borrar `erddap_mirror.sqlite*` y arrancarlo; para
   desactivarla, `ERDDAP_MIRROR=0` en el `.env`.
 
+### Histórico del AIS de la boya
+
+La boya emite AIS como ayuda a la navegación (MMSI 992241239, «ODAS SOMORROSTRO»), pero
+aisstream.io no pasa esos mensajes. Su histórico se descarga a mano en CSV de la base de datos AIS
+TUGEMI de la UPC (https://ais.fnb.upc.edu/database/multi-info, «By Multi MMSIs», todos los campos;
+pide reCAPTCHA, así que no se puede automatizar). Con cada CSV nuevo, desde el repositorio:
+
+```bash
+python3 tools/buoy_ais.py ~/Descargas/vessel_info_992241239_*.csv
+```
+
+Lo añade a `ais_history.sqlite` (fuera de git; las filas repetidas no se duplican) y vuelve a
+escribir `data/StaticData/buoy_ais.json`, que es lo que usa el mapa (capa «AIS de la boya»). Después
+se sube la web como siempre y, de copia, la base de datos al servidor:
+
+```bash
+scp ais_history.sqlite bardaji@iot.icm.csic.es:/opt/boiasomorrostro/
+```
+
 ### Vehículos del BlueLab (BlueBoat)
 
 `boia_server.py` lee el tracker público de la flota del BlueLab
