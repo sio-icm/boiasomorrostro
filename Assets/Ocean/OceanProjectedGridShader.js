@@ -155,15 +155,16 @@ export const OceanProjectedGridVertShader = /* glsl */ `
     // Intersection point
     vec3 intersectionPoint = u_cameraGridPosition + ray * t;
 
-    // HACK -> if cameraForward is opposite from ray direction, move intersection point on the opposite side
-    // TODO: this method assumes that the camera is close to the center 0,0,0
-    // Extract forward vector from camera
+    // If the ray meets the sea behind the camera (it points over the horizon), the point goes to the
+    // other side, in front: mirrored around the camera's foot on the sea. It was mirrored around the
+    // centre (0, 0, 0), the buoy: away from it (following a boat) those points made a second sea,
+    // crossing the first, and the two showed as two layers of waves
     mat3 orientationMatrix = mat3(u_cameraModelMatrix);
     vec3 forwardCameraVector = -orientationMatrix[2];
     vec3 ray2 = intersectionPoint - u_cameraGridPosition;
     float dotResult = dot(forwardCameraVector, ray2);
     if (dotResult < 0.0)
-        intersectionPoint = intersectionPoint * -1.0;
+        intersectionPoint = vec3(2.0 * u_cameraGridPosition.x - intersectionPoint.x, 0.0, 2.0 * u_cameraGridPosition.z - intersectionPoint.z);
 
     // ******************************** //
 
