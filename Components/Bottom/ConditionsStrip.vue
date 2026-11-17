@@ -23,7 +23,7 @@ export default {
       return this.$gui.conditions;
     },
     shown() {
-      return this.$gui.followed && this.conditions?.rows.length && this.$gui.panelState !== 'fullscreen';
+      return this.$gui.followed && !this.$gui.historyMode && this.conditions?.rows.length && this.$gui.panelState !== 'fullscreen';
     },
   },
   methods: {

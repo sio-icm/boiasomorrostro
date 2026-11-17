@@ -225,6 +225,12 @@ export default {
       if (!date) this.applyMoment();
     });
     if (this.$gui.patiDate) this.sceneManager.setPati(this.$gui.patiDate, this.$gui.patiStation);
+    // The history mode (see GUIManager.historyTime): our equipment where it was, or back to now
+    window.eventBus.on('GUIManager_historyChanged', (time) => {
+      this.sceneManager.setHistory(time);
+      if (time == undefined) this.applyMoment();
+    });
+    if (this.$gui.historyMode) this.sceneManager.setHistory(this.$gui.historyTime);
     this.waveForecastInterval = setInterval(this.applyMoment, 60 * 60 * 1000);
 
     // ****** LOADING SCREEN  - INITIAL PARAMETERS *****
@@ -289,7 +295,7 @@ export default {
     async applyMoment() {
       const date = this.$gui.moment;
       // undefined: now, and moving on. In the Patí Científic mode, its date's (see SceneManager.setPati)
-      if (!this.$gui.patiMode) this.sceneManager.setSkyTime(this.$gui.selectedTime);
+      if (!this.$gui.patiMode && !this.$gui.historyMode) this.sceneManager.setSkyTime(this.$gui.selectedTime);
       await this.loadWaveForecast(date);
       await this.applyWind(date);
     },

@@ -27,6 +27,7 @@ import { sunPosition } from '/boiasomorrostro/Assets/Scripts/SunPosition.js';
 import { CityLights } from '/boiasomorrostro/Assets/Terrain/CoastLine/CityLights.js';
 import { WindStreaks } from '/boiasomorrostro/Assets/Wind/WindStreaks.js';
 import { WaterColumnsEntity } from '/boiasomorrostro/Assets/PatiCientific/WaterColumnsEntity.js';
+import { HistoryManager } from '/boiasomorrostro/Assets/History/HistoryManager.js';
 
 // Light by the height of the sun (degrees), interpolated between these states:
 //  tint      multiplies the sky panorama, the air and the sky the sea reflects
@@ -42,6 +43,8 @@ const SKY_STATES = [
 ];
 const SKY_UPDATE_MINUTES = 5;
 
+
+const ZERO = new THREE.Vector3();
 
 class SceneManager{
 
@@ -343,17 +346,24 @@ class SceneManager{
   // Reposition camera
   focusOnBuoy = function(){
     this.stopFollowing();
+    // Where it is drawn: moored, or in the history mode where it was then. Far from its mooring
+    // (before it was put to sea its AIS was ashore, among buildings) seen from above
+    const buoy = this.buoyPosition();
+    const away = Math.hypot(buoy.x, buoy.z) > 500 ? 6 : 1;
     // Tween camera position
     new TWEEN.Tween(this.camera.position)
-      .to({ x: 15, y: 10, z: 15 }, 4000)
+      .to({ x: buoy.x + 15 * away, y: 10 * away * away, z: buoy.z + 15 * away }, 4000)
       .easing(TWEEN.Easing.Cubic.InOut)
       .start();
     // Tween camera target
     new TWEEN.Tween(this.controls.target)
-      .to({ x: 0, y: 1, z: 0 }, 4000)
+      .to({ x: buoy.x, y: 1, z: buoy.z }, 4000)
       .easing(TWEEN.Easing.Cubic.InOut)
       .onUpdate(() => this.controls.update())
       .start();
+  }
+  buoyPosition = function(){
+    return this.historyTime != undefined && this.history ? this.history.buoyOffset : ZERO;
   }
   focusOnBase = function(){
     // Tween camera position
@@ -464,10 +474,16 @@ class SceneManager{
         // Change buoy position
         if (this.somorrostroBuoy !== undefined) {
           if (this.somorrostroBuoy.isLoaded) {
-            // Get y position and normal of the wave on that point
-            let position = new THREE.Vector3();
+            // Get y position and normal of the wave on that point: where it is moored, or in the
+            // history mode where it was then (see setHistory)
+            const offset = this.buoyPosition();
+            let position = offset.clone();
             let normal = new THREE.Vector3();
             this.ocean.getNormalAndPositionAt(position, normal);
+            // Far from where it is drawn (into or out of the history mode, or to another day): there at once
+            const root = this.somorrostroBuoy.root;
+            if (!isNaN(position.x) && Math.hypot(root.position.x - offset.x, root.position.z - offset.z) > 30)
+              root.position.set(position.x, position.y, position.z);
 
             if (!isNaN(position.x)){
 
@@ -508,12 +524,14 @@ class SceneManager{
 
     // Vessels (the patí sails between reports and rides the waves), hidden in the Patí Científic
     // mode: they are now, the columns of 2021-22 (see setPati)
-    if (this.patiDate) {
+    // In the history mode too: only ours, where they were then (see setHistory)
+    if (this.patiDate || this.historyTime != undefined) {
       Object.values(this.aisVesselsManager.ships).forEach(ship => {
         if (ship.root) ship.root.visible = false;
         if (ship.ownMarker) ship.ownMarker.ring.visible = false;
       });
-      this.waterColumns?.update(this.camera);
+      if (this.patiDate) this.waterColumns?.update(this.camera);
+      else this.history?.update(dt, this.ocean, this.windDirection, this.camera);
     } else if (this.aisVesselsManager) {
       this.aisVesselsManager.update(dt, this.ocean, this.windDirection);
     }
@@ -522,7 +540,8 @@ class SceneManager{
 
     // Whether the camera is on the buoy: looking at it from not too far, not following a vessel
     const target = this.controls.target;
-    const buoyInFocus = !this.followed && Math.hypot(target.x, target.z) < 30 && this.camera.position.distanceTo(target) < 200;
+    const buoy = this.buoyPosition();
+    const buoyInFocus = !this.followed && Math.hypot(target.x - buoy.x, target.z - buoy.z) < 30 && this.camera.position.distanceTo(target) < 200;
     if (window.GUIManager && window.GUIManager.buoyInFocus !== buoyInFocus) window.GUIManager.buoyInFocus = buoyInFocus;
 
     // Flag updates
@@ -553,7 +572,7 @@ class SceneManager{
   // FOLLOW A VESSEL
   // Flies the camera behind and above the vessel (by MMSI), then keeps following it
   follow = function(mmsi){
-    const vessel = mmsi == undefined ? undefined : this.aisVesselsManager.ships[mmsi];
+    const vessel = mmsi == undefined ? undefined : this.vessels()[mmsi];
     if (!vessel?.root) return false;
     this.followed = vessel;
     this.followedMMSI = mmsi;
@@ -570,7 +589,7 @@ class SceneManager{
   // for the smallest (a BlueBoat is 1.2 m long)
   followView = function(){
     const root = this.followed.root;
-    const length = window.AISManager?.ships[this.followedMMSI]?.length || 0;
+    const length = window.AISManager?.ships[this.followedMMSI]?.length || this.followed.length || 0;
     const distance = length > 0 && length < 2 ? 6 : Math.max(16, length * 2.5);
     const behind = new THREE.Vector3(-Math.cos(root.rotation.y), 0, Math.sin(root.rotation.y)).multiplyScalar(distance);
     return {
@@ -582,7 +601,7 @@ class SceneManager{
   // camera's offset to the vessel, so the user can still orbit around it
   updateFollow = function(){
     // Looked up every frame: the vessel is rebuilt when it gets its proper model (see AISVesselsManager)
-    const vessel = this.aisVesselsManager.ships[this.followedMMSI];
+    const vessel = this.vessels()[this.followedMMSI];
     if (!vessel?.root) return this.stopFollowing();
     this.followed = vessel;
     const position = vessel.root.position;
@@ -614,7 +633,7 @@ class SceneManager{
     const candidates = [];
     const add = (id, root) => { if (root?.visible) candidates.push([id, root.position.clone().add(new THREE.Vector3(0, 1.5, 0))]); };
     add('buoy', this.somorrostroBuoy?.root);
-    Object.entries(this.aisVesselsManager.ships).forEach(([mmsi, ship]) => add(mmsi, ship.root));
+    if (!this.patiDate) Object.entries(this.vessels()).forEach(([mmsi, ship]) => add(mmsi, ship.root));
     if (this.patiDate) candidates.push(...this.waterColumns.pickables());
     let best, bestDistance = 24;
     candidates.forEach(([id, position]) => {
@@ -624,6 +643,36 @@ class SceneManager{
       if (distance < bestDistance) [best, bestDistance] = [id, distance];
     });
     return best;
+  }
+
+
+
+  // The vessels in the scene by id: those of now, or in the history mode ours then
+  vessels = function(){
+    return this.historyTime != undefined ? (this.history?.vessels || {}) : this.aisVesselsManager.ships;
+  }
+
+
+
+  // HISTORY MODE (see GUIManager.historyTime)
+  // Our equipment where it was at a past moment (ms), under that moment's sky, instead of the
+  // vessels of now (see HistoryManager). undefined: back to now
+  setHistory = function(time){
+    const entering = this.historyTime == undefined && time != undefined;
+    this.historyTime = time;
+    if (time == undefined) {
+      if (this.history) {
+        if (this.followed?.historyId) this.stopFollowing();
+        this.history.clear();
+      }
+      Object.values(this.aisVesselsManager.ships).forEach(ship => { if (ship.root) ship.root.visible = true; });
+      return;
+    }
+    if (entering && this.followed) this.stopFollowing(); // A vessel of now
+    this.history ??= new HistoryManager(this.scene, this.LATITUDE, this.LONGITUDE);
+    this.history.setTime(time);
+    // Its sky, not every frame while playing: each change renders the sea's reflection again
+    if (entering || Math.abs(time - (this.skyDate?.getTime() ?? 0)) > 10 * 60e3) this.setSkyTime(new Date(time));
   }
 
 

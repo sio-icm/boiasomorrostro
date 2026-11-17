@@ -14,7 +14,7 @@ SSH con la VPN del CMIMA). Allí todo va con nginx, sin túnel:
 | nginx | `/etc/nginx/conf.d/boiasomorrostro.conf`, copia en [`nginx-boiasomorrostro.conf`](nginx-boiasomorrostro.conf) |
 | HTTPS | certificado de Let's Encrypt (`certbot`, nombre `iot.cmima.csic.es`) |
 
-Rutas: `/ais` (WebSocket, al puerto 8766), `/proxy/`, `/pati` y `/boiasomorrostro/intranet/api/` (al 8767). En Traccar Client, la
+Rutas: `/ais` (WebSocket, al puerto 8766), `/proxy/`, `/pati`, `/history/` y `/boiasomorrostro/intranet/api/` (al 8767). En Traccar Client, la
 dirección del servidor es `https://iot.icm.csic.es/pati`.
 
 Para subir una versión nueva de la web, desde el repositorio:
@@ -114,6 +114,10 @@ PYTHONPATH=.pylib python3 -u boia_server.py
 `boia_server.py` guarda en `positions` cada posición de la Pelagia Primer (AIS) y de los
 BlueBoats (no del simulado) a medida que llega, es decir, solo mientras están fuera emitiendo. Los
 patís, todavía no.
+
+El **modo histórico del 3D** (botón del reloj, arriba a la derecha) los muestra, con la boya, donde
+estaban en cualquier momento pasado: `boia_server.py` responde en `/history/summary` (qué equipos
+hay y qué días tienen datos) y `/history/positions?from=&to=` (sus posiciones, resumidas).
 
 ### Histórico del AIS de la boya e intranet
 

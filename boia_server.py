@@ -46,6 +46,13 @@ in .env, from this computer only). GET buoy: the buoy's AIS history in the datab
 (the CSV as the body): adds a TUGEMI download of it and writes the buoy's files for the app again
 (see buoy_ais.py).
 
+HISTORY (HTTP port, /history/): where our equipment was, from the database, for the 3D view's
+history mode (Assets/History/HistoryManager.js). Read only, for the allowed origins as the proxy.
+GET summary: each platform with positions, its first and last, and the days it has any.
+GET positions?from=<ISO>&to=<ISO> (HISTORY_MAX_DAYS at most): each platform's positions then, one
+per step (the median of those in it), the step growing with the range (HISTORY_POINTS at most).
+The buoy's, only its GPS fixes (see buoy_ais.py).
+
 Usage: python3 boia_server.py [port] [http port]   (default 8766 for the AIS WebSocket and 8767
 for the proxy and the patí positions; see Assets/Scripts/config.js)
 Requires the websockets package (pip install websockets).
@@ -573,7 +580,89 @@ async def intranet(method, path, headers, body, peer):
     return answer(404, {'error': 'not found'})
 
 
-# HTTP PORT: the proxy, patí positions and the intranet
+# HISTORY
+HISTORY_MAX_DAYS = 3
+HISTORY_POINTS = 3000  # Per platform at most
+HISTORY_MIN_STEP = 20  # s
+HISTORY_CACHE_SECONDS = 60
+# The positions that tell where it was: the buoy's AIS also sends its charted position
+HISTORY_WHERE = "(source <> 'tugemi' OR accuracy)"
+
+
+def history_summary():
+    db = boia_db.connect()
+    try:
+        rows = db.execute(
+            'SELECT p.platform, pl.name, pl.kind, min(p.time), max(p.time), '
+            "array_agg(DISTINCT to_char(p.time AT TIME ZONE 'UTC', 'YYYY-MM-DD')) "
+            f'FROM positions p JOIN platforms pl ON pl.id = p.platform WHERE {HISTORY_WHERE} '
+            'GROUP BY p.platform, pl.name, pl.kind ORDER BY p.platform').fetchall()
+    finally:
+        db.close()
+    return {'platforms': [{'id': id, 'name': name, 'kind': kind, 'first': first.isoformat(), 'last': last.isoformat(),
+                           'days': sorted(days)} for id, name, kind, first, last, days in rows]}
+
+
+def history_positions(query):
+    params = {key: values[0] for key, values in parse_qs(query).items()}
+    start, end = parse_time(params.get('from')), parse_time(params.get('to'))
+    if start is None or end is None or end <= start:
+        raise ValueError('from and to: ISO times, from before to')
+    end = min(end, start + HISTORY_MAX_DAYS * 86400)
+    step = max(HISTORY_MIN_STEP, math.ceil((end - start) / HISTORY_POINTS))
+    db = boia_db.connect()
+    try:
+        rows = db.execute(
+            "SELECT platform, extract(epoch FROM date_bin(make_interval(secs => %s), time, 'epoch'))::bigint t, "
+            'percentile_cont(0.5) WITHIN GROUP (ORDER BY lat), percentile_cont(0.5) WITHIN GROUP (ORDER BY lon), '
+            'avg(sog), (array_agg(heading ORDER BY time DESC) FILTER (WHERE heading IS NOT NULL))[1] '
+            f'FROM positions WHERE {HISTORY_WHERE} AND time >= to_timestamp(%s) AND time < to_timestamp(%s) '
+            'GROUP BY 1, 2 ORDER BY 1, 2', (step, start, end)).fetchall()
+    finally:
+        db.close()
+    tracks = {}
+    for platform, t, lat, lon, sog, heading in rows:
+        track = tracks.setdefault(platform, {'t': [], 'lat': [], 'lon': [], 'sog': [], 'heading': []})
+        track['t'].append(t)
+        track['lat'].append(round(lat, 6))
+        track['lon'].append(round(lon, 6))
+        track['sog'].append(None if sog is None else round(sog, 1))
+        track['heading'].append(heading)
+    return {'from': start, 'to': end, 'step': step, 'tracks': tracks}
+
+
+async def history_answer(path, query):
+    """(status code, body) of a history request"""
+    def answer(code, data):
+        return code, json.dumps(data, separators=(',', ':')).encode()
+    if not read_env('DATABASE_URL'):
+        return answer(503, {'error': 'no database'})
+    key = (path, query)
+    cached = history_cache.get(key)
+    if cached and cached[0] > time.time() - HISTORY_CACHE_SECONDS:
+        return 200, cached[1]
+    try:
+        if path == '/history/summary':
+            code, body = answer(200, await asyncio.to_thread(history_summary))
+        elif path == '/history/positions':
+            code, body = answer(200, await asyncio.to_thread(history_positions, query))
+        else:
+            return answer(404, {'error': 'not found'})
+    except ValueError as error:
+        return answer(400, {'error': str(error)})
+    except Exception as error:
+        print('❌ History:', error)
+        return answer(500, {'error': 'database'})
+    for old in [k for k, (at, _) in history_cache.items() if at < time.time() - HISTORY_CACHE_SECONDS]:
+        del history_cache[old]
+    history_cache[key] = (time.time(), body)
+    return code, body
+
+
+history_cache = {}  # (path, query) -> (when, body)
+
+
+# HTTP PORT: the proxy, patí positions, the intranet and the history
 async def http_handler(reader, writer, devices, origins):
     status, content_type, body_out, extra = '400 Bad Request', 'text/plain', b'', ''
     try:
@@ -593,6 +682,11 @@ async def http_handler(reader, writer, devices, origins):
             code, content_type, body_out = await intranet(method, urlsplit(path).path, headers, body, peer)
             status = f'{code} {"OK" if code == 200 else "Error"}'
             extra += 'Cache-Control: no-store\r\n'
+        elif urlsplit(path).path.startswith('/history/'):
+            code, body_out = await history_answer(urlsplit(path).path, urlsplit(path).query)
+            content_type = 'application/json'
+            status = f'{code} {"OK" if code == 200 else "Error"}'
+            extra += 'Cache-Control: public, max-age=60\r\n'
         elif urlsplit(path).path.rstrip('/').endswith('/proxy'):
             code, content_type, body_out = await proxy(path)
             status = f'{code} {"OK" if code == 200 else "Error"}'

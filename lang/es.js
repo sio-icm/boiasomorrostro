@@ -173,6 +173,23 @@ export default es = {
   "The fleet tracker is not available now": "El panel de la flota no está disponible ahora",
   "History": "Histórico",
   // The Patí Científic mode of the 3D view (see PatiTimeControl)
+  history3d: {
+    buttonTitle: "Histórico: dónde estaban nuestros equipos",
+    exitTitle: "Salir del histórico y volver a ahora",
+    kind: "Histórico",
+    moment: "Momento del histórico",
+    play: "Reproducir",
+    pause: "Pausa",
+    back: "10 minutos antes",
+    forward: "10 minutos después",
+    previousDay: "Día anterior con datos",
+    nextDay: "Día siguiente con datos",
+    speed: "Velocidad: segundos de la realidad por segundo",
+    noData: "Sin datos en este momento",
+    loading: "Cargando…",
+    unavailable: "Histórico no disponible",
+    goTo: "Ir a verlo",
+  },
   pati3d: {
     buttonTitle: "Patí Científic 2021–22: la columna de agua en 3D",
     exitTitle: "Salir del Patí Científic y volver a ahora",
