@@ -628,7 +628,7 @@ export default {
         <div class="map-card-date">${t("From Somorrostro")}: ${buoy.distance}</div></div>`;
     },
     // THE BUOY'S AIS: its positions as an aid to navigation, from the UPC's TUGEMI database
-    // (tools/buoy_ais.py, data/StaticData/buoy_ais.json). Its GPS fixes since it is moored, as
+    // (buoy_ais.py, data/StaticData/buoy_ais.json). Its GPS fixes since it is moored, as
     // squares coloured by how often it was there; circles with the distance it keeps within half
     // and 90 % of the time; and its mooring, with a card. Each day's position, small and grey: the
     // first months, while the AIS was in the Port Olímpic
@@ -674,7 +674,7 @@ export default {
       this.showAISTime();
     },
     // THE TIME BAR: where the buoy was at each moment (its track, a position every 10 min, see
-    // tools/buoy_ais.py), with its trail of the last AIS_TRAIL_STEPS, and a button to play it
+    // buoy_ais.py), with its trail of the last AIS_TRAIL_STEPS, and a button to play it
     async showAISTime() {
       this.aisTrack ??= await fetch('data/StaticData/buoy_ais_track.json').then(res => res.json()).catch(() => undefined);
       const track = this.aisTrack;

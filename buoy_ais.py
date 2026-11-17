@@ -1,12 +1,12 @@
 """The buoy's AIS history: its positions as an aid to navigation (MMSI 992241239, "ODAS SOMORROSTRO"),
 which aisstream.io doesn't relay. Downloaded by hand as CSV from the UPC's TUGEMI AIS database
 (https://ais.fnb.upc.edu/database/multi-info: "By Multi MMSIs", all fields, CSV), which only lets
-people query it (reCAPTCHA).
+people query it (reCAPTCHA), and uploaded on the intranet (boia_server.py) or given to this script.
 
-Every CSV given is added to an SQLite file (AIS_HISTORY, ais_history.sqlite next to the repo's
-root by default; not in git), without repeating the rows already there, so the downloads may
-overlap. Then data/StaticData/buoy_ais.json is written again from all of it, for the map (see
-MapBuoyLocation.drawBuoyAIS).
+Every CSV is added to the SIO database (boia_db.py: table positions, source "tugemi"), without
+repeating the rows already there, so the downloads may overlap. Then the buoy's files for the app
+are written again from all of it, in DATA_DIR (BUOY_DATA_DIR in .env; data/StaticData by default):
+buoy_ais.json, for the map (see MapBuoyLocation.drawBuoyAIS).
 
 Its AIS sends two positions: mostly a fixed one (accuracy False), its charted position, always the
 same; and about one report in five, its GPS fix (accuracy True), where it really is. Only these
@@ -20,14 +20,16 @@ tell where it is and how it swings:
   gaps     when it didn't transmit for more than GAP_HOURS: [from, to] (ISO, UTC)
   position its last known position: the median of its GPS fixes of the last LAST_MINUTES before
            the last one (one fix alone may be a bad one)
-And data/StaticData/buoy_ais_track.json, how it moves, for the map's time bar: a position every
-STEP s (the median of the GPS fixes in it; none, no position), as whole decimetres east and north
-of the mooring: {start, step, lat, lon, i: [step number...], e: [...], n: [...]}
-And data/StaticData/buoy_position.js, its last known position, where the app puts the buoy (main.js).
+And buoy_ais_track.json, how it moves, for the map's time bar: a position every STEP s (the median
+of the GPS fixes in it; none, no position), as whole decimetres east and north of the mooring:
+{start, step, lat, lon, i: [step number...], e: [...], n: [...]}
+And buoy_position.js, its last known position, where the app puts the buoy (main.js).
 
-Usage: python3 tools/buoy_ais.py [file.csv ...]   (no files: only writes the JSON again)
+Usage: python3 buoy_ais.py [file.csv ...]          (no files: only writes the files again)
+       python3 buoy_ais.py --sqlite ais_history.sqlite   (the history kept before, in SQLite)
 """
 import csv
+import io
 import json
 import math
 import os
@@ -37,12 +39,12 @@ import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-DB = os.environ.get('AIS_HISTORY') or os.path.join(ROOT, 'ais_history.sqlite')
-OUT = os.path.join(ROOT, 'data', 'StaticData', 'buoy_ais.json')
-TRACK = os.path.join(ROOT, 'data', 'StaticData', 'buoy_ais_track.json')
-POSITION = os.path.join(ROOT, 'data', 'StaticData', 'buoy_position.js')
-MMSI = 992241239
+import boia_db
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+MMSI = '992241239'
+SOURCE = 'tugemi'
+FILES = ('buoy_ais.json', 'buoy_ais_track.json', 'buoy_position.js')
 MOORING_DAYS = 30
 MOORED_WITHIN = 500  # m: a day whose median position is this close to the mooring, out there
 OUTLIER = 400  # m from the mooring: a bad GPS fix (some are kilometres off)
@@ -52,30 +54,52 @@ LAST_MINUTES = 60
 STEP = 600  # s
 
 
-def connect():
-    db = sqlite3.connect(DB)
-    db.execute('''CREATE TABLE IF NOT EXISTS positions (
-        mmsi INTEGER, time INTEGER, msg_type INTEGER, lat REAL, lon REAL, accuracy INTEGER, name TEXT,
-        PRIMARY KEY (mmsi, time, msg_type))''')
-    return db
+def data_dir():
+    return boia_db.read_env('BUOY_DATA_DIR') or os.path.join(ROOT, 'data', 'StaticData')
 
 
-def add(db, path):
-    """The CSV's rows, added; how many were new"""
-    def number(text):
-        return float(text) if text not in ('', None) else None
+def read_csv(text):
+    """The CSV's rows (text of a TUGEMI download): (time, msg_type, lat, lon, accuracy, name), only
+    the buoy's and with a position. ValueError if it isn't one"""
+    def number(value):
+        return float(value) if value not in ('', None) else None
+    reader = csv.DictReader(line for line in io.StringIO(text) if not line.startswith('#'))
+    missing = {'mmsi', 'lat', 'lon', 'receiver_timestamp', 'msg_type'} - set(reader.fieldnames or [])
+    if missing:
+        raise ValueError('not a TUGEMI AIS download: no ' + ', '.join(sorted(missing)))
     rows = []
-    with open(path, newline='') as file:
-        for row in csv.DictReader(line for line in file if not line.startswith('#')):
-            # "2026-03-26 15:48:21 UTC+0100"
-            when = datetime.strptime(row['receiver_timestamp'].replace(' UTC', ' '), '%Y-%m-%d %H:%M:%S %z')
-            accuracy = {'True': 1, 'False': 0}.get(row.get('accuracy'))
-            rows.append((int(row['mmsi']), int(when.timestamp()), int(row['msg_type'] or 0),
-                         number(row['lat']), number(row['lon']), accuracy, row.get('name') or None))
-    before = db.total_changes
-    db.executemany('INSERT OR IGNORE INTO positions VALUES (?, ?, ?, ?, ?, ?, ?)', rows)
-    db.commit()
-    return len(rows), db.total_changes - before
+    for row in reader:
+        lat, lon = number(row['lat']), number(row['lon'])
+        if row['mmsi'].strip() != MMSI or lat is None or lon is None:
+            continue
+        # "2026-03-26 15:48:21 UTC+0100"
+        when = datetime.strptime(row['receiver_timestamp'].replace(' UTC', ' '), '%Y-%m-%d %H:%M:%S %z')
+        accuracy = {'True': True, 'False': False}.get(row.get('accuracy'))
+        rows.append((when, int(row['msg_type'] or 0), lat, lon, accuracy, row.get('name') or None))
+    return rows
+
+
+def add(db, rows):
+    """Adds the rows ((time, msg_type, lat, lon, accuracy, name)) to the database; how many were new"""
+    with db.transaction():
+        db.execute('CREATE TEMP TABLE IF NOT EXISTS new_positions (time timestamptz, msg_type smallint, '
+                   'lat double precision, lon double precision, accuracy boolean, name text)')
+        db.execute('TRUNCATE new_positions')
+        with db.cursor().copy('COPY new_positions FROM STDIN') as copy:
+            for row in rows:
+                copy.write_row(row)
+        new = db.execute('INSERT INTO positions (platform, time, source, msg_type, lat, lon, accuracy, name) '
+                         'SELECT %s, time, %s, msg_type, lat, lon, accuracy, name FROM new_positions '
+                         'ON CONFLICT DO NOTHING', (MMSI, SOURCE)).rowcount
+    return new
+
+
+def from_sqlite(path):
+    """The rows of the SQLite history kept before (tools/buoy_ais.py)"""
+    old = sqlite3.connect(path)
+    return [(datetime.fromtimestamp(t, timezone.utc), msg_type, lat, lon, None if accuracy is None else bool(accuracy), name)
+            for t, msg_type, lat, lon, accuracy, name in old.execute(
+                'SELECT time, msg_type, lat, lon, accuracy, name FROM positions WHERE mmsi = ? AND lat IS NOT NULL', (int(MMSI),))]
 
 
 def metres(lat, lon, lat0, lon0):
@@ -91,13 +115,20 @@ def iso(t):
     return datetime.fromtimestamp(t, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
-def export(db):
-    rows = db.execute('SELECT time, lat, lon, name FROM positions WHERE mmsi = ? AND accuracy = 1 ORDER BY time',
-                      (MMSI,)).fetchall()
-    charted = db.execute('SELECT lat, lon, count(*) n FROM positions WHERE mmsi = ? AND accuracy = 0 '
-                         'GROUP BY lat, lon ORDER BY n DESC LIMIT 1', (MMSI,)).fetchone()
-    names = [row[0] for row in db.execute('SELECT name FROM positions WHERE mmsi = ? AND name IS NOT NULL ORDER BY time', (MMSI,))]
-    times = [row[0] for row in db.execute('SELECT time FROM positions WHERE mmsi = ? ORDER BY time', (MMSI,))]
+def export(db, out=None):
+    """Writes the buoy's files for the app in out (data_dir()) from all its history; its summary"""
+    out = out or data_dir()
+    epoch = 'extract(epoch FROM time)::bigint'
+    where = "platform = %s AND source = %s"
+    rows = db.execute(f'SELECT {epoch}, lat, lon, name FROM positions WHERE {where} AND accuracy ORDER BY time',
+                      (MMSI, SOURCE)).fetchall()
+    if not rows:
+        raise ValueError('no GPS fixes of the buoy in the database')
+    charted = db.execute(f'SELECT lat, lon, count(*) n FROM positions WHERE {where} AND NOT accuracy '
+                         'GROUP BY lat, lon ORDER BY n DESC LIMIT 1', (MMSI, SOURCE)).fetchone()
+    names = [row[0] for row in db.execute(f'SELECT name FROM positions WHERE {where} AND name IS NOT NULL ORDER BY time',
+                                          (MMSI, SOURCE))]
+    times = [row[0] for row in db.execute(f'SELECT {epoch} FROM positions WHERE {where} ORDER BY time', (MMSI, SOURCE))]
     last = rows[-1][0]
 
     # Where it is moored now, and since when
@@ -134,7 +165,7 @@ def export(db):
 
     gaps = [[iso(a), iso(b)] for a, b in zip(times, times[1:]) if b - a > GAP_HOURS * 3600]
     data = {
-        'mmsi': MMSI,
+        'mmsi': int(MMSI),
         'name': names[-1] if names else None,
         'source': 'TUGEMI AIS database, UPC (ais.fnb.upc.edu)',
         'first': iso(times[0]), 'last': iso(times[-1]), 'count': len(times), 'fixes': len(rows),
@@ -154,11 +185,10 @@ def export(db):
     latest = [row for row in rows if row[0] > last - LAST_MINUTES * 60]
     data['position'] = {'time': iso(last), 'lat': round(statistics.median(row[1] for row in latest), 6),
                     'lon': round(statistics.median(row[2] for row in latest), 6)}
-    with open(OUT, 'w') as file:
-        json.dump(data, file, separators=(',', ':'))
-    with open(POSITION, 'w') as file:
-        file.write("// Written by tools/buoy_ais.py: the buoy's last known position, from its AIS (GPS fixes)\n"
-                   f"export default {json.dumps(data['position'])};\n")
+    os.makedirs(out, exist_ok=True)
+    write(out, 'buoy_ais.json', json.dumps(data, separators=(',', ':')))
+    write(out, 'buoy_position.js', "// Written by buoy_ais.py: the buoy's last known position, from its AIS (GPS fixes)\n"
+          f"export default {json.dumps(data['position'])};\n")
 
     # How it moves: a position every STEP s
     start = rows[0][0] - rows[0][0] % STEP
@@ -170,21 +200,39 @@ def export(db):
         track['i'].append(i)
         track['e'].append(round(statistics.median(p[0] for p in positions) * 10))
         track['n'].append(round(statistics.median(p[1] for p in positions) * 10))
-    with open(TRACK, 'w') as file:
-        json.dump(track, file, separators=(',', ':'))
+    write(out, 'buoy_ais_track.json', json.dumps(track, separators=(',', ':')))
     data['track'] = len(track['i'])
     return data
 
 
-if __name__ == '__main__':
-    db = connect()
-    for path in sys.argv[1:]:
-        read, new = add(db, path)
-        print(f'{os.path.basename(path)}: {read} rows, {new} new')
-    data = export(db)
+def write(out, name, text):
+    """Writes a file whole: to a temporary one first, so the web never serves it half written"""
+    path = os.path.join(out, name)
+    with open(path + '.tmp', 'w') as file:
+        file.write(text)
+    os.replace(path + '.tmp', path)
+
+
+def summary(data):
     m = data['mooring']
-    print(f"{data['count']} positions, {data['first']} to {data['last']}; moored at {m['lat']}, {m['lon']} "
-          f"since {m['since']}, swinging p50 {m['p50']} m, p90 {m['p90']} m ({m['outliers']} bad fixes left out); "
-          f"{len(data['cells'])} cells, {len(data['gaps'])} gaps; {os.path.getsize(OUT) // 1024} KB; "
-          f"last at {data['position']['lat']}, {data['position']['lon']} ({data['position']['time']}); "
-          f"track of {data['track']} steps, {os.path.getsize(TRACK) // 1024} KB")
+    return (f"{data['count']} positions, {data['first']} to {data['last']}; moored at {m['lat']}, {m['lon']} "
+            f"since {m['since']}, swinging p50 {m['p50']} m, p90 {m['p90']} m ({m['outliers']} bad fixes left out); "
+            f"{len(data['cells'])} cells, {len(data['gaps'])} gaps; "
+            f"last at {data['position']['lat']}, {data['position']['lon']} ({data['position']['time']}); "
+            f"track of {data['track']} steps")
+
+
+if __name__ == '__main__':
+    db = boia_db.connect()
+    if db is None:
+        sys.exit('No database: set DATABASE_URL (see boia_db.py)')
+    args = sys.argv[1:]
+    if args[:1] == ['--sqlite']:
+        rows = from_sqlite(args[1])
+        print(f'{args[1]}: {len(rows)} rows, {add(db, rows)} new')
+        args = args[2:]
+    for path in args:
+        with open(path, newline='') as file:
+            rows = read_csv(file.read())
+        print(f'{os.path.basename(path)}: {len(rows)} rows, {add(db, rows)} new')
+    print(summary(export(db)), 'in', data_dir())
