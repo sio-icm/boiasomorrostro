@@ -175,8 +175,8 @@ async def upstream(api_key):
                     metadata['time_utc'] = iso_time(metadata.get('time_utc'))
                     metadata['ShipName'] = (metadata.get('ShipName') or '').strip()  # Padded with spaces
                     publish(message)
-        except (OSError, websockets.WebSocketException) as error:
-            print('❌ aisstream.io connection lost, retrying in 10 s:', error)
+        except Exception as error:  # Whatever it is (a timeout too: not an OSError in Python 3.10), retried
+            print(f'❌ aisstream.io connection lost, retrying in 10 s: {error!r}')
         await asyncio.sleep(10)
 
 
@@ -505,7 +505,6 @@ async def update_mirror():
         await asyncio.sleep(MIRROR_SECONDS)
 
 
-# HTTP PORT: the proxy, and patí positions
 # INTRANET
 INTRANET_MAX_BYTES = 200 * 1024 * 1024
 
@@ -574,6 +573,7 @@ async def intranet(method, path, headers, body, peer):
     return answer(404, {'error': 'not found'})
 
 
+# HTTP PORT: the proxy, patí positions and the intranet
 async def http_handler(reader, writer, devices, origins):
     status, content_type, body_out, extra = '400 Bad Request', 'text/plain', b'', ''
     try:
