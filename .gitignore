@@ -6,3 +6,6 @@ erddap_mirror.sqlite*
 
 # The buoy's AIS history (SQLite, see tools/buoy_ais.py)
 ais_history.sqlite*
+
+# Our equipment's positions, recorded by boia_server.py (SQLite)
+equipment_history.sqlite*
