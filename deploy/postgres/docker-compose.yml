@@ -1,0 +1,22 @@
+# The SIO's database: PostgreSQL with PostGIS, where every data source of the app is kept (see
+# deploy/README.md, "Base de datos"). Its tables are created by boia_db.py (schema.sql).
+#
+#   cd deploy/postgres && docker compose --env-file ../../.env up -d
+#
+# POSTGRES_PASSWORD from the .env. Only on this machine (127.0.0.1): from elsewhere, through SSH.
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: boia-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: boia
+      POSTGRES_USER: boia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ${POSTGRES_DATA:-boia-db}:/var/lib/postgresql/data
+
+volumes:
+  boia-db:
