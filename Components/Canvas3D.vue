@@ -228,7 +228,10 @@ export default {
     // The history mode (see GUIManager.historyTime): our equipment where it was, or back to now
     window.eventBus.on('GUIManager_historyChanged', (time) => {
       this.sceneManager.setHistory(time);
-      if (time == undefined) this.applyMoment();
+      if (time == undefined) {
+        this.historyHour = undefined;
+        this.applyMoment();
+      } else this.applyHistoryConditions(time);
     });
     if (this.$gui.historyMode) this.sceneManager.setHistory(this.$gui.historyTime);
     this.waveForecastInterval = setInterval(this.applyMoment, 60 * 60 * 1000);
@@ -293,6 +296,8 @@ export default {
   methods: {
     // Sky, sea and wind of the moment shown (see GUIManager.selectedTime)
     async applyMoment() {
+      // In the history mode, the sea and the wind recorded then
+      if (this.$gui.historyMode) return this.applyHistoryConditions(this.$gui.historyTime, true);
       const date = this.$gui.moment;
       // undefined: now, and moving on. In the Patí Científic mode, its date's (see SceneManager.setPati)
       if (!this.$gui.patiMode && !this.$gui.historyMode) this.sceneManager.setSkyTime(this.$gui.selectedTime);
@@ -309,6 +314,10 @@ export default {
         speed = await data.weather.getValueAt('WSPD', date);
         direction = await data.weather.getValueAt('WDIR', date);
       }
+      this.setWind(speed, direction);
+    },
+    // The wind (m/s, degrees from) on the sea, the streaks and the sails
+    setWind(speed, direction) {
       if (direction != undefined) this.sceneManager.windDirection = direction;
       if (speed != undefined) this.sceneManager.windSpeed = speed; // m/s, for the wind streaks (see WindStreaks)
       if (speed != undefined && this.sceneManager.ocean) {
@@ -341,6 +350,24 @@ export default {
       const waves = Object.fromEntries(variables.map(variable => [variable, hourly[variable][index]]));
       if (waves.wave_height == undefined) return;
       this.forecastWaves = waves;
+      this.applyWaves(waves);
+    },
+    // In the history mode: the sea and the wind at the buoy recorded the hour of the moment (see
+    // boia_server.py, CONDITIONS), again only when the hour changes (or always, force)
+    async applyHistoryConditions(time, force) {
+      const hour = Math.round(time / 3600e3);
+      if (!force && hour === this.historyHour) return;
+      this.historyHour = hour;
+      const conditions = await this.sceneManager.history?.conditions(hour * 3600e3);
+      if (this.historyHour !== hour || !this.$gui.historyMode) return; // Changed meanwhile
+      const values = conditions?.values || {};
+      if (values.wave_height != undefined) this.applyWaves(values);
+      if (values.wind_speed_10m != undefined) this.setWind(values.wind_speed_10m, values.wind_direction_10m);
+    },
+    // A sea state (Open-Meteo Marine's variables) on the 3D sea
+    applyWaves(waves) {
+      const ocean = this.sceneManager.ocean;
+      if (!ocean) return;
       const height = Math.max(0.1, waves.wave_height);
       ocean.updateWaveSignificantHeight(height);
       ocean.updateMeanWaveDirection(waves.wave_direction);

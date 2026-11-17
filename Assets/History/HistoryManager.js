@@ -67,6 +67,16 @@ class HistoryManager {
     loaded.slice(KEEP_DAYS).forEach(old => delete this.days[old]);
   }
 
+  // The sea and the wind at the buoy recorded the hour of a moment (ms, on the hour): {time, values}
+  conditions(hour) {
+    this.conditionCache ??= {};
+    this.conditionCache[hour] ??= fetch(`${HISTORY_URL}conditions?at=${new Date(hour).toISOString()}`)
+      .then(res => res.ok ? res.json() : undefined).catch(() => undefined);
+    const keys = Object.keys(this.conditionCache);
+    if (keys.length > 200) keys.slice(0, 100).forEach(key => delete this.conditionCache[key]);
+    return this.conditionCache[hour];
+  }
+
   // Whether the positions of a moment are still loading
   loading(time) {
     return time != undefined && this.days[Math.floor(time / DAY)] instanceof Promise;
