@@ -35,6 +35,13 @@ And, with SIMULATED_BOATS, a simulated BlueBoat and/or patí always sailing near
 the app when none of ours is out ("blueboat", "pati", comma separated; 1 for both). They are marked
 as simulated, for the app to say so.
 
+HISTORY OF OUR EQUIPMENT: every position of the ICM's own boats is kept, as it arrives (only while
+they are out, sending), for the app to show later where each one was: the Pelagia Primer (RECORDED_MMSI)
+and the BlueBoats, not the simulated ones. In the table tracks of the SQLite file EQUIPMENT_HISTORY
+(.env; equipment_history.sqlite next to this script by default; "0" off). Not the buoy's file
+(ais_history.sqlite, from tools/buoy_ais.py): that one is copied from a computer to the server, and
+would overwrite what is recorded here.
+
 Usage: python3 boia_server.py [port] [http port]   (default 8766 for the AIS WebSocket and 8767
 for the proxy and the patí positions; see Assets/Scripts/config.js)
 Requires the websockets package (pip install websockets).
@@ -44,6 +51,7 @@ import json
 import math
 import os
 import re
+import sqlite3
 import sys
 import time
 import urllib.error
@@ -77,6 +85,12 @@ FLEET_TIMEOUT = 20  # s
 # A BlueBoat (Blue Robotics): a catamaran 1.2 m long, 0.85 m wide
 BLUEBOAT_DIMENSION = {'A': 0.6, 'B': 0.6, 'C': 0.43, 'D': 0.42}
 BLUEBOAT_TYPE = 0  # Not available: the app knows them by their MMSI
+
+# Our equipment whose positions are kept (see HISTORY OF OUR EQUIPMENT): by MMSI, and every BlueBoat
+RECORDED_MMSI = {'224946750'}  # Pelagia Primer
+RECORDED_PREFIXES = ('BLUEBOAT-',)
+POSITION_MESSAGES = ('PositionReport', 'StandardClassBPositionReport', 'ExtendedClassBPositionReport')
+recorder = None  # The SQLite connection, if on
 
 clients = set()
 history = []  # (received at, message)
@@ -161,11 +175,50 @@ async def upstream(api_key):
 
 def publish(message):
     """Keeps the message in the history and sends it to every connected app"""
+    record(message)
     now = time.time()
     history.append((now, message))
     while history and history[0][0] < now - HISTORY_SECONDS:
         history.pop(0)
     websockets.broadcast(clients, json.dumps({'message': message}))
+
+
+# HISTORY OF OUR EQUIPMENT
+def read_recorder():
+    """The SQLite file where our equipment's positions are kept, or None if off"""
+    path = read_env('EQUIPMENT_HISTORY') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'equipment_history.sqlite')
+    if path == '0':
+        return None
+    db = sqlite3.connect(path)
+    db.execute('''CREATE TABLE IF NOT EXISTS tracks (
+        mmsi TEXT, time INTEGER, lat REAL, lon REAL, sog REAL, heading INTEGER, name TEXT,
+        PRIMARY KEY (mmsi, time))''')
+    db.commit()
+    return db
+
+
+def record(message):
+    """Keeps the position, if it is of our equipment (not simulated)"""
+    if recorder is None or message.get('MessageType') not in POSITION_MESSAGES:
+        return
+    metadata = message.get('MetaData') or {}
+    mmsi = str(metadata.get('MMSI_String') or metadata.get('MMSI') or '')
+    if metadata.get('Simulated') or not (mmsi in RECORDED_MMSI or mmsi.startswith(RECORDED_PREFIXES)):
+        return
+    lat, lon = metadata.get('latitude'), metadata.get('longitude')
+    if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)) or abs(lat) > 90 or abs(lon) > 180:
+        return
+    when = parse_time(metadata.get('time_utc')) or time.time()
+    report = (message.get('Message') or {}).get(message['MessageType']) or {}
+    sog = report.get('Sog') if isinstance(report.get('Sog'), (int, float)) and report['Sog'] < 102.3 else None
+    heading = report.get('TrueHeading')
+    heading = heading if isinstance(heading, int) and 0 <= heading < 360 else None
+    try:
+        recorder.execute('INSERT OR IGNORE INTO tracks VALUES (?, ?, ?, ?, ?, ?, ?)',
+                         (mmsi, round(when), lat, lon, sog, heading, metadata.get('ShipName') or None))
+        recorder.commit()
+    except sqlite3.Error as error:
+        print('❌ History of our equipment:', error)
 
 
 # PATÍ (positions from a phone)
@@ -518,6 +571,10 @@ async def main(port, http_port):
             print('BlueLab fleet tracker:', fleet['url'])
             asyncio.create_task(fleet_poll(fleet_settings))
             asyncio.create_task(fleet_stream(fleet_settings))
+        global recorder
+        recorder = read_recorder()
+        if recorder:
+            print('History of our equipment:', recorder.execute('PRAGMA database_list').fetchone()[2])
         global mirror
         mirror = read_mirror()
         if mirror:
