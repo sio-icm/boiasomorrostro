@@ -37,10 +37,14 @@ as simulated, for the app to say so.
 
 HISTORY OF OUR EQUIPMENT: every position of the ICM's own boats is kept, as it arrives (only while
 they are out, sending), for the app to show later where each one was: the Pelagia Primer (RECORDED_MMSI)
-and the BlueBoats, not the simulated ones. In the table tracks of the SQLite file EQUIPMENT_HISTORY
-(.env; equipment_history.sqlite next to this script by default; "0" off). Not the buoy's file
-(ais_history.sqlite, from tools/buoy_ais.py): that one is copied from a computer to the server, and
-would overwrite what is recorded here.
+and the BlueBoats, not the simulated ones. In the SIO database (boia_db.py, table positions; no
+DATABASE_URL, not kept).
+
+INTRANET (HTTP port, /intranet/api/): for the intranet page (intranet/index.html), behind nginx's
+login, which tells the user in X-Intranet-User (without it, refused; locally, with INTRANET_LOCAL=1
+in .env, from this computer only). GET buoy: the buoy's AIS history in the database; POST buoy-csv
+(the CSV as the body): adds a TUGEMI download of it and writes the buoy's files for the app again
+(see buoy_ais.py).
 
 Usage: python3 boia_server.py [port] [http port]   (default 8766 for the AIS WebSocket and 8767
 for the proxy and the patí positions; see Assets/Scripts/config.js)
@@ -51,7 +55,6 @@ import json
 import math
 import os
 import re
-import sqlite3
 import sys
 import time
 import urllib.error
@@ -61,6 +64,8 @@ from urllib.parse import parse_qs, quote, urlsplit
 
 import websockets
 
+import boia_db
+import buoy_ais
 from erddap_mirror import Mirror
 
 AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream'
@@ -90,7 +95,9 @@ BLUEBOAT_TYPE = 0  # Not available: the app knows them by their MMSI
 RECORDED_MMSI = {'224946750'}  # Pelagia Primer
 RECORDED_PREFIXES = ('BLUEBOAT-',)
 POSITION_MESSAGES = ('PositionReport', 'StandardClassBPositionReport', 'ExtendedClassBPositionReport')
-recorder = None  # The SQLite connection, if on
+recorder = None  # The database connection, if there is one
+RECONNECT_SECONDS = 60  # Not tried more often, so a database down doesn't hold the feed up
+recorder_tried = 0
 
 clients = set()
 history = []  # (received at, message)
@@ -185,21 +192,20 @@ def publish(message):
 
 # HISTORY OF OUR EQUIPMENT
 def read_recorder():
-    """The SQLite file where our equipment's positions are kept, or None if off"""
-    path = read_env('EQUIPMENT_HISTORY') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'equipment_history.sqlite')
-    if path == '0':
+    """The database where our equipment's positions are kept, or None if there is none"""
+    global recorder_tried
+    recorder_tried = time.time()
+    try:
+        return boia_db.connect()
+    except Exception as error:  # Not reachable now: the app works without it
+        print('❌ Database:', error)
         return None
-    db = sqlite3.connect(path)
-    db.execute('''CREATE TABLE IF NOT EXISTS tracks (
-        mmsi TEXT, time INTEGER, lat REAL, lon REAL, sog REAL, heading INTEGER, name TEXT,
-        PRIMARY KEY (mmsi, time))''')
-    db.commit()
-    return db
 
 
 def record(message):
     """Keeps the position, if it is of our equipment (not simulated)"""
-    if recorder is None or message.get('MessageType') not in POSITION_MESSAGES:
+    global recorder
+    if message.get('MessageType') not in POSITION_MESSAGES or not boia_db.read_env('DATABASE_URL'):
         return
     metadata = message.get('MetaData') or {}
     mmsi = str(metadata.get('MMSI_String') or metadata.get('MMSI') or '')
@@ -213,12 +219,26 @@ def record(message):
     sog = report.get('Sog') if isinstance(report.get('Sog'), (int, float)) and report['Sog'] < 102.3 else None
     heading = report.get('TrueHeading')
     heading = heading if isinstance(heading, int) and 0 <= heading < 360 else None
-    try:
-        recorder.execute('INSERT OR IGNORE INTO tracks VALUES (?, ?, ?, ?, ?, ?, ?)',
-                         (mmsi, round(when), lat, lon, sog, heading, metadata.get('ShipName') or None))
-        recorder.commit()
-    except sqlite3.Error as error:
-        print('❌ History of our equipment:', error)
+    name = metadata.get('ShipName') or None
+    source = 'bluelab' if mmsi.startswith('BLUEBOAT-') else 'aisstream'
+    for attempt in range(2):  # Once more if the connection had dropped
+        if recorder is None or recorder.closed:
+            if time.time() - recorder_tried < RECONNECT_SECONDS:
+                return
+            recorder = read_recorder()
+            if recorder is None:
+                return
+        try:
+            recorder.execute('INSERT INTO platforms (id, name, kind, owner) VALUES (%s, %s, %s, %s) '
+                             'ON CONFLICT (id) DO NOTHING',
+                             (mmsi, name, 'vehicle' if source == 'bluelab' else 'boat', 'ICM-CSIC'))
+            recorder.execute('INSERT INTO positions (platform, time, source, msg_type, lat, lon, sog, heading, name) '
+                             'VALUES (%s, to_timestamp(%s), %s, 0, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING',
+                             (mmsi, round(when), source, lat, lon, sog, heading, name))
+            return
+        except Exception as error:
+            print('❌ History of our equipment:', error)
+            recorder.close()
 
 
 # PATÍ (positions from a phone)
@@ -486,6 +506,74 @@ async def update_mirror():
 
 
 # HTTP PORT: the proxy, and patí positions
+# INTRANET
+INTRANET_MAX_BYTES = 200 * 1024 * 1024
+
+
+def buoy_status(db):
+    """The buoy's AIS history in the database"""
+    count, fixes, first, last = db.execute(
+        "SELECT count(*), count(*) FILTER (WHERE accuracy), min(time), max(time) FROM positions "
+        "WHERE platform = %s AND source = %s", (buoy_ais.MMSI, buoy_ais.SOURCE)).fetchone()
+    return {'count': count, 'fixes': fixes, 'first': first and first.isoformat(), 'last': last and last.isoformat()}
+
+
+def buoy_upload(text):
+    """Adds a TUGEMI CSV of the buoy, writes its files for the app again; what it did"""
+    db = boia_db.connect()
+    try:
+        rows = buoy_ais.read_csv(text)
+        if not rows:
+            raise ValueError(f'no positions of the buoy (MMSI {buoy_ais.MMSI}) in it')
+        new = buoy_ais.add(db, rows)
+        data = buoy_ais.export(db)
+        print(f'Intranet: buoy CSV, {len(rows)} rows, {new} new; ' + buoy_ais.summary(data))
+        return {'read': len(rows), 'new': new, 'from': min(r[0] for r in rows).astimezone(timezone.utc).isoformat(),
+                'to': max(r[0] for r in rows).astimezone(timezone.utc).isoformat(), 'status': buoy_status(db),
+                'position': data['position'], 'mooring': data['mooring']}
+    finally:
+        db.close()
+
+
+def buoy_read():
+    db = boia_db.connect()
+    try:
+        status = buoy_status(db)
+    finally:
+        db.close()
+    try:
+        with open(os.path.join(buoy_ais.data_dir(), 'buoy_ais.json')) as file:
+            data = json.load(file)
+        status.update(position=data.get('position'), mooring=data.get('mooring'))
+    except (OSError, ValueError):
+        pass
+    return status
+
+
+async def intranet(method, path, headers, body, peer):
+    """(status code, content type, body) of an intranet request"""
+    def answer(code, data):
+        return code, 'application/json', json.dumps(data).encode()
+    local = (read_env('INTRANET_LOCAL') or '') == '1' and peer in ('127.0.0.1', '::1')
+    if not headers.get('x-intranet-user') and not local:
+        return answer(401, {'error': 'login required'})
+    if not read_env('DATABASE_URL'):
+        return answer(503, {'error': 'no database'})
+    try:
+        if method == 'GET' and path == '/intranet/api/buoy':
+            return answer(200, await asyncio.to_thread(buoy_read))
+        if method == 'POST' and path == '/intranet/api/buoy-csv':
+            if not body:
+                return answer(400, {'error': 'empty file'})
+            return answer(200, await asyncio.to_thread(buoy_upload, body.decode('utf-8-sig', errors='replace')))
+    except ValueError as error:
+        return answer(400, {'error': str(error)})
+    except Exception as error:
+        print('❌ Intranet:', error)
+        return answer(500, {'error': str(error)})
+    return answer(404, {'error': 'not found'})
+
+
 async def http_handler(reader, writer, devices, origins):
     status, content_type, body_out, extra = '400 Bad Request', 'text/plain', b'', ''
     try:
@@ -493,11 +581,19 @@ async def http_handler(reader, writer, devices, origins):
         lines = head.decode(errors='ignore').split('\r\n')
         method, path = lines[0].split(' ')[:2]
         headers = {k.strip().lower(): v.strip() for k, _, v in (line.partition(':') for line in lines[1:] if line)}
-        body = await reader.readexactly(int(headers.get('content-length', 0) or 0))
+        length = int(headers.get('content-length', 0) or 0)
+        if length > INTRANET_MAX_BYTES:
+            raise ValueError('too big')
+        body = await asyncio.wait_for(reader.readexactly(length), 300)
         origin = headers.get('origin')
         if origin in origins:
             extra = f'Access-Control-Allow-Origin: {origin}\r\nVary: Origin\r\n'
-        if urlsplit(path).path.rstrip('/').endswith('/proxy'):
+        if urlsplit(path).path.startswith('/intranet/api/'):
+            peer = (writer.get_extra_info('peername') or ('',))[0]
+            code, content_type, body_out = await intranet(method, urlsplit(path).path, headers, body, peer)
+            status = f'{code} {"OK" if code == 200 else "Error"}'
+            extra += 'Cache-Control: no-store\r\n'
+        elif urlsplit(path).path.rstrip('/').endswith('/proxy'):
             code, content_type, body_out = await proxy(path)
             status = f'{code} {"OK" if code == 200 else "Error"}'
             extra += 'Cache-Control: public, max-age=60\r\n'
@@ -574,7 +670,7 @@ async def main(port, http_port):
         global recorder
         recorder = read_recorder()
         if recorder:
-            print('History of our equipment:', recorder.execute('PRAGMA database_list').fetchone()[2])
+            print('History of our equipment: in the database', recorder.info.dbname)
         global mirror
         mirror = read_mirror()
         if mirror:
