@@ -7,7 +7,7 @@ import es from '/boiasomorrostro/lang/es.js';
 
 // Location
 // Where the buoy is: its last known position, from the GPS fixes of its AIS (written by
-// tools/buoy_ais.py with each download of its history; its charted position, 41.375694, 2.216194,
+// buoy_ais.py with each download of its history; its charted position, 41.375694, 2.216194,
 // is some 150 m off)
 import BUOY_POSITION from '/boiasomorrostro/data/StaticData/buoy_position.js';
 window.LONGITUDE = BUOY_POSITION.lon;
