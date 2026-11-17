@@ -119,6 +119,11 @@ El **modo histórico del 3D** (botón del reloj, arriba a la derecha) los muestr
 estaban en cualquier momento pasado: `boia_server.py` responde en `/history/summary` (qué equipos
 hay y qué días tienen datos) y `/history/positions?from=&to=` (sus posiciones, resumidas).
 
+Para que en el histórico el mar y el viento sean los de entonces, `boia_server.py` guarda cada hora
+en la tabla `conditions` las olas (Open-Meteo Marine) y el viento (Open-Meteo, Météo-France) en la
+boya, las horas ya pasadas, porque Open-Meteo solo guarda unos días. La primera vez rellena los
+últimos 92 días que da (el viento llega a menos). El 3D las pide en `/history/conditions?at=`.
+
 ### Histórico del AIS de la boya e intranet
 
 La boya emite AIS como ayuda a la navegación (MMSI 992241239, «ODAS SOMORROSTRO»), pero

@@ -37,3 +37,15 @@ INSERT INTO platforms (id, name, kind, owner) VALUES
     ('992241239', 'Boia Somorrostro', 'buoy', 'ICM-CSIC'),
     ('224946750', 'Pelagia Primer', 'boat', 'ICM-CSIC')
 ON CONFLICT (id) DO NOTHING;
+
+-- conditions  the sea and the wind at the buoy, hour by hour, as the 3D view shows them (see
+--             boia_server.py, CONDITIONS): from a model (source), each variable as Open-Meteo names
+--             it (wave_height m, wave_direction degrees from, wind_speed_10m m/s...). Kept for the
+--             3D view's history mode, as the services only keep a few days
+CREATE TABLE IF NOT EXISTS conditions (
+    time timestamptz NOT NULL,
+    source text NOT NULL,
+    variable text NOT NULL,
+    value real,
+    PRIMARY KEY (time, source, variable)
+);

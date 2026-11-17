@@ -53,6 +53,12 @@ GET positions?from=<ISO>&to=<ISO> (HISTORY_MAX_DAYS at most): each platform's po
 per step (the median of those in it), the step growing with the range (HISTORY_POINTS at most).
 The buoy's, only its GPS fixes (see buoy_ais.py).
 
+CONDITIONS: every hour, the sea and the wind at the buoy from Open-Meteo (the same models the 3D
+view uses now: CONDITION_SOURCES), the hours already past, kept in the database (table
+conditions), as Open-Meteo only keeps a few days. Again for the last days each time, as the model
+is run again; the first time, as far back as Open-Meteo gives (92 days). For the 3D view's history
+mode: GET /history/conditions?at=<ISO>, those of that hour.
+
 Usage: python3 boia_server.py [port] [http port]   (default 8766 for the AIS WebSocket and 8767
 for the proxy and the patí positions; see Assets/Scripts/config.js)
 Requires the websockets package (pip install websockets).
@@ -580,6 +586,77 @@ async def intranet(method, path, headers, body, peer):
     return answer(404, {'error': 'not found'})
 
 
+# CONDITIONS
+CONDITIONS_SECONDS = 3600
+CONDITIONS_PAST_DAYS = 3  # Read again each time
+CONDITIONS_FIRST_DAYS = 92  # The first time: all Open-Meteo gives
+WAVE_VARIABLES = ['wave_height', 'wave_direction', 'wind_wave_height', 'wind_wave_direction', 'swell_wave_height',
+                  'swell_wave_direction', 'secondary_swell_wave_height', 'secondary_swell_wave_direction']
+WIND_VARIABLES = ['wind_speed_10m', 'wind_direction_10m']
+# source -> (URL, variables); as Canvas3D.loadWaveForecast and the app's Open-Meteo weather forecast
+CONDITION_SOURCES = {
+    'open-meteo-marine': ('https://marine-api.open-meteo.com/v1/marine', WAVE_VARIABLES),
+    'open-meteo-meteofrance': ('https://api.open-meteo.com/v1/meteofrance', WIND_VARIABLES),
+}
+CONDITIONS_AT = (41.37698, 2.216858)  # The buoy's mooring
+
+
+def record_conditions():
+    """Reads the past hours of each source and keeps them; how many values"""
+    db = boia_db.connect()
+    try:
+        count = 0
+        for source, (url, variables) in CONDITION_SOURCES.items():
+            any_kept = db.execute('SELECT 1 FROM conditions WHERE source = %s LIMIT 1', (source,)).fetchone()
+            days = CONDITIONS_PAST_DAYS if any_kept else CONDITIONS_FIRST_DAYS
+            query = (f'?latitude={CONDITIONS_AT[0]}&longitude={CONDITIONS_AT[1]}&hourly={",".join(variables)}'
+                     f'&past_days={days}&forecast_days=1&wind_speed_unit=ms&timezone=UTC')
+            request = urllib.request.Request(url + query, headers={'User-Agent': 'boia-somorrostro (SIO ICM-CSIC)'})
+            with urllib.request.urlopen(request, timeout=60) as response:
+                hourly = json.load(response)['hourly']
+            now = datetime.now(timezone.utc)
+            rows = []
+            for i, hour in enumerate(hourly['time']):
+                when = datetime.fromisoformat(hour).replace(tzinfo=timezone.utc)
+                if when > now:
+                    continue  # Only what has happened: the forecast is not kept
+                rows += [(when, source, variable, hourly[variable][i]) for variable in variables
+                         if hourly.get(variable) and hourly[variable][i] is not None]
+            with db.cursor() as cursor:
+                cursor.executemany('INSERT INTO conditions VALUES (%s, %s, %s, %s) '
+                                   'ON CONFLICT (time, source, variable) DO UPDATE SET value = EXCLUDED.value', rows)
+            count += len(rows)
+        return count
+    finally:
+        db.close()
+
+
+async def update_conditions():
+    while True:
+        try:
+            await asyncio.to_thread(record_conditions)
+        except Exception as error:
+            print(f'❌ Conditions not recorded: {error!r}')
+        await asyncio.sleep(CONDITIONS_SECONDS)
+
+
+def history_conditions(query):
+    """The sea and the wind at the buoy the hour of a moment (the closest within 3 h)"""
+    at = parse_time({key: values[0] for key, values in parse_qs(query).items()}.get('at'))
+    if at is None:
+        raise ValueError('at: an ISO time')
+    db = boia_db.connect()
+    try:
+        rows = db.execute(
+            'SELECT DISTINCT ON (source, variable) source, variable, value, extract(epoch FROM time)::bigint '
+            'FROM conditions WHERE time BETWEEN to_timestamp(%s) - interval \'3 hours\' AND to_timestamp(%s) + interval \'3 hours\' '
+            'ORDER BY source, variable, abs(extract(epoch FROM time) - %s)', (at, at, at)).fetchall()
+    finally:
+        db.close()
+    values = {variable: value for _, variable, value, _ in rows}
+    return {'time': min((t for *_, t in rows), key=lambda t: abs(t - at), default=None), 'values': values}
+
+
 # HISTORY
 HISTORY_MAX_DAYS = 3
 HISTORY_POINTS = 3000  # Per platform at most
@@ -646,6 +723,8 @@ async def history_answer(path, query):
             code, body = answer(200, await asyncio.to_thread(history_summary))
         elif path == '/history/positions':
             code, body = answer(200, await asyncio.to_thread(history_positions, query))
+        elif path == '/history/conditions':
+            code, body = answer(200, await asyncio.to_thread(history_conditions, query))
         else:
             return answer(404, {'error': 'not found'})
     except ValueError as error:
@@ -765,6 +844,7 @@ async def main(port, http_port):
         recorder = read_recorder()
         if recorder:
             print('History of our equipment: in the database', recorder.info.dbname)
+            asyncio.create_task(update_conditions())
         global mirror
         mirror = read_mirror()
         if mirror:
