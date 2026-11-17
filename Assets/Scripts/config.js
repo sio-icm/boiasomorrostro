@@ -17,9 +17,14 @@ const AIS_URL = LOCAL ? 'ws://localhost:8766'
   : SIO_SERVER ? `${SIO_SERVER.replace(/^http/, 'ws')}/ais`
   : 'wss://api.icatmar.cat/ais';
 
+// Where our equipment was (the 3D view's history mode, see HistoryManager)
+const HISTORY_URL = LOCAL ? `http://${location.hostname}:8767/history/`
+  : SIO_SERVER ? `${SIO_SERVER}/history/`
+  : '';
+
 // An ERDDAP URL through the proxy
 function proxied(url) {
   return PROXY_URL + '?url=' + encodeURIComponent(url);
 }
 
-export { SIO_SERVER, PROXY_URL, AIS_URL, proxied };
+export { SIO_SERVER, PROXY_URL, AIS_URL, HISTORY_URL, proxied };

@@ -49,12 +49,31 @@ class GUIManager {
   _patiDate = undefined;
   get patiDate() { return this._patiDate; }
   set patiDate(date) {
+    if (date && this._historyTime != undefined) this.historyTime = undefined; // One mode at a time
     this._patiDate = date;
     if (date) window.location.setHashValue('PATI', date);
     else window.location.removeHash('PATI');
     window.eventBus.emit('GUIManager_patiChanged', date);
   }
   get patiMode() { return this._patiDate != undefined; }
+  // THE HISTORY MODE of the 3D view: where our equipment was at a past moment (ms since 1970), from
+  // what the server keeps (see HistoryManager and HistoryTimeControl), instead of the vessels of
+  // now. undefined, the app as always. In the address as <HISTORY=2026-11-16T10:57Z>, written a
+  // moment after it stops changing (it changes every frame while playing)
+  _historyTime = undefined;
+  get historyTime() { return this._historyTime; }
+  set historyTime(time) {
+    if (time != undefined && this._patiDate) this.patiDate = undefined; // One mode at a time
+    this._historyTime = time;
+    clearTimeout(this._historyHash);
+    this._historyHash = setTimeout(() => {
+      if (this._historyTime == undefined) window.location.removeHash('HISTORY');
+      else window.location.setHashValue('HISTORY', new Date(this._historyTime).toISOString().slice(0, 16) + 'Z');
+    }, 500);
+    window.eventBus.emit('GUIManager_historyChanged', time);
+  }
+  get historyMode() { return this._historyTime != undefined; }
+
   // The station whose column the camera is beside (its number): 6, the one by the buoy, at first
   _patiStation = 6;
   get patiStation() { return this._patiStation; }
@@ -227,6 +246,9 @@ class GUIManager {
     // Patí Científic mode <PATI=2022-06-16>
     let pati = window.location.getHashValue('PATI');
     if (pati != undefined && /^\d{4}-\d{2}-\d{2}$/.test(pati)) this._patiDate = pati;
+    // History mode <HISTORY=2026-11-16T10:57Z>
+    let history = window.location.getHashValue('HISTORY');
+    if (history != undefined && !pati && !isNaN(Date.parse(history))) this._historyTime = Date.parse(history);
     // Write back the state the app starts with
     this.selectedSection = this._selectedSection;
     this.panelState = this._panelState;
