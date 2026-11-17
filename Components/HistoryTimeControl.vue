@@ -66,10 +66,11 @@ export default {
       history.summary.then(summary => {
         this.platforms = summary.platforms;
         this.first = Math.min(...summary.platforms.map(p => Date.parse(p.first)));
-        this.last = Math.min(Date.now(), Math.max(...summary.platforms.map(p => Date.parse(p.last))));
-        // From a moment with data
+        // Up to now (the sea and the wind are recorded every hour), starting from the last position
+        this.last = Date.now();
+        const latest = Math.min(this.last, Math.max(...summary.platforms.map(p => Date.parse(p.last))));
         const time = this.$gui.historyTime;
-        if (!(time >= this.first && time <= this.last)) this.$gui.historyTime = this.last;
+        if (!(time >= this.first && time <= latest)) this.$gui.historyTime = latest;
       }, () => this.failed = true);
     };
     this.waiting = setInterval(start, 200);
