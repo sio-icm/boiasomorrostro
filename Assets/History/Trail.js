@@ -41,7 +41,7 @@ const fragmentShader = `
   uniform vec3 tailColor;
   uniform float opacity;
   uniform float glow;       // 0: core (sharp edges, whiter towards the vessel), 1: glow (soft)
-  uniform float headGap;    // m clear around the vessel itself
+  uniform float headGap;    // m under the vessel itself (its length), where it starts
   uniform float time;
   varying float vSide;
   varying float vAlong;
@@ -49,9 +49,11 @@ const fragmentShader = `
   void main() {
     float edge = abs(vSide);
     float across = mix(1.0 - smoothstep(0.35, 1.0, edge), pow(1.0 - edge, 2.0), glow);
-    float age = pow(vAlong, 1.2);
-    float head = smoothstep(headGap * 0.5, headGap * 1.5, vToHead);
-    float pulse = 0.8 + 0.2 * sin(vToHead * 0.08 - time * 2.5);
+    // Strongest at the vessel, fading all the way to its oldest end (only cleared under the vessel
+    // itself, from its middle to its stern, hidden by it)
+    float age = pow(vAlong, 1.5);
+    float head = smoothstep(headGap * 0.15, headGap * 0.5, vToHead);
+    float pulse = 0.92 + 0.08 * sin(vToHead * 0.08 - time * 2.5);
     float a = opacity * across * age * head * pulse;
     if (a < 0.003) discard;
     vec3 c = mix(tailColor, color, smoothstep(0.0, 0.8, vAlong));
@@ -134,7 +136,7 @@ class Trail {
     const time = performance.now() / 1000;
     [[this.core, width], [this.glow, width * GLOW]].forEach(([mesh, w]) => {
       mesh.material.uniforms.width.value = w;
-      mesh.material.uniforms.headGap.value = length * 1.5;
+      mesh.material.uniforms.headGap.value = length;
       mesh.material.uniforms.time.value = time;
     });
   }
