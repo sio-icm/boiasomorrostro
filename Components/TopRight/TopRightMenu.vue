@@ -40,6 +40,16 @@
         </svg>
       </button>
 
+      <!-- The history mode: where our equipment was at a past moment (see GUIManager.historyTime) -->
+      <button @click="historyButtonClicked" class="roundButton icon-big icon-str clickable history-button" :class="{ active: $gui.historyMode }"
+        :title="$t($gui.historyMode ? 'history3d.exitTitle' : 'history3d.buttonTitle')" :aria-pressed="$gui.historyMode">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" fill="none" stroke="#1a1a1a" stroke-width="1.7" stroke-linecap="round"/>
+          <path d="M3.6 4.4v3.4H7" fill="none" stroke="#1a1a1a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12 8v4.3l3 1.8" fill="none" stroke="#6b4fbb" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+
     </div>
   </div>
 </template>
@@ -84,6 +94,10 @@ export default {
     buoyButtonClicked: function(e){
       window.eventBus.emit('InstrumentsMenu_buoyButtonClicked');
       this.$gui.patiDate = undefined; // Back to now, too
+    },
+    // Into the history mode (HistoryTimeControl takes it to the last moment with positions), or out
+    historyButtonClicked: function(){
+      this.$gui.historyTime = this.$gui.historyMode ? undefined : Date.now();
     },
     // Into the Patí Científic mode (see GUIManager.loadPati for its first date), or out of it
     patiButtonClicked: async function(){
@@ -137,6 +151,10 @@ export default {
   }
   .pati-button.active {
     background-color: #12a39a;
+    box-shadow: 0 0 0 2px white;
+  }
+  .history-button.active {
+    background-color: #b9a8ec;
     box-shadow: 0 0 0 2px white;
   }
 
