@@ -75,6 +75,18 @@ se sube la web como siempre y, de copia, la base de datos al servidor:
 scp ais_history.sqlite bardaji@iot.icm.csic.es:/opt/boiasomorrostro/
 ```
 
+### Histórico de nuestros equipos
+
+`boia_server.py` guarda cada posición de la Pelagia Primer (AIS) y de los BlueBoats (no del
+simulado) a medida que llegan, es decir, solo mientras están fuera emitiendo: tabla `tracks` de
+`/opt/boiasomorrostro/equipment_history.sqlite` (`EQUIPMENT_HISTORY` en el `.env`; `0`, apagado).
+Es un fichero distinto del de la boya, que se copia desde un ordenador y lo machacaría. Ese fichero
+solo existe en el servidor: para una copia,
+
+```bash
+scp bardaji@iot.icm.csic.es:/opt/boiasomorrostro/equipment_history.sqlite ~/
+```
+
 ### Vehículos del BlueLab (BlueBoat)
 
 `boia_server.py` lee el tracker público de la flota del BlueLab
