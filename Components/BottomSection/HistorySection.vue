@@ -266,6 +266,9 @@ export default {
 #history-section {
   display: flex;
   flex-direction: column;
+  /* Edge to edge: the panel centres its sections, which would leave it as wide as its toolbar */
+  width: 100%;
+  box-sizing: border-box;
   height: clamp(260px, 45vh, 420px);
   overflow-y: auto;
   padding: 6px 12px 0;
@@ -277,7 +280,6 @@ export default {
 .history-toolbar {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
   align-items: center;
   gap: 6px;
   padding-left: 70px; /* clear of the panel's close/fullscreen buttons */
@@ -297,6 +299,7 @@ export default {
   box-shadow: none;
 }
 .history-info {
+  margin-left: auto;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
