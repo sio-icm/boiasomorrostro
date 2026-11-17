@@ -4,6 +4,7 @@ import { BlueBoatEntity } from '/boiasomorrostro/Assets/AISVessels/BlueBoatEntit
 import { ZodiacEntity } from '/boiasomorrostro/Assets/AISVessels/ZodiacEntity.js';
 import { PatiEntity } from '/boiasomorrostro/Assets/AISVessels/PatiEntity.js';
 import { OwnMarker } from '/boiasomorrostro/Assets/AISVessels/OwnMarker.js';
+import { Trail } from '/boiasomorrostro/Assets/History/Trail.js';
 
 // THE 3D VIEW'S HISTORY MODE (see GUIManager.historyTime): where our equipment was at a past
 // moment, from what the server keeps (boia_server.py, HISTORY): the buoy (its AIS GPS fixes), the
@@ -19,6 +20,9 @@ const MARGIN = 6 * 3600e3; // ms of the days around loaded with each day
 const GAP = 20 * 60e3; // ms: farther than this from its positions, a vessel is not shown
 const SPIKE = 300; // m: a position this far from both its neighbours (which are close) is a bad fix
 const KEEP_DAYS = 6; // Days kept loaded
+const TRAIL = 3600e3; // ms of the way each one came shown behind it (see Trail)
+// Each one's colour (as in HistoryTimeControl)
+const COLORS = { buoy: '#f2c200', boat: '#e8463c', vehicle: '#4f7bff' };
 
 class HistoryManager {
 
@@ -30,6 +34,7 @@ class HistoryManager {
     this.vessels = {}; // id -> entity, while shown
     this.buoyOffset = new THREE.Vector3(); // Where the buoy was, from its last known position
     this.present = {}; // id -> whether it has a position at the moment
+    this.trails = {}; // id -> its wake (Trail), while shown
     this.summary = fetch(HISTORY_URL + 'summary').then(res => {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.json();
@@ -132,6 +137,43 @@ class HistoryManager {
     return { x, z, heading };
   }
 
+  // The way it came to where it is at a moment (at): its positions of the TRAIL before, since its
+  // last gap, and there
+  wake(id, time, at) {
+    const points = this.days[Math.floor(time / DAY)]?.[id];
+    if (!points?.length) return [];
+    const from = time - TRAIL;
+    const way = [];
+    for (let i = 0; i < points.length && points[i].t < time; i++) {
+      const p = points[i];
+      if (p.t < from) continue;
+      if (way.length && p.t - way[way.length - 1].t > GAP) way.length = 0;
+      way.push(p);
+    }
+    if (way.length && time - way[way.length - 1].t > GAP) way.length = 0;
+    way.push({ t: time, x: at.x, z: at.z });
+    return way;
+  }
+
+  colorOf(id) {
+    return COLORS[this.platforms?.[id]?.kind] || COLORS.boat;
+  }
+
+  // Its wake drawn, made again when the moment changes
+  updateTrail(id, at, root, camera, length) {
+    const trail = this.trails[id] ??= new Trail(this.scene, this.colorOf(id));
+    if (trail.time !== this.time) {
+      trail.time = this.time;
+      trail.set(this.wake(id, this.time, at), this.time - TRAIL, this.time);
+    }
+    trail.update(root, camera, length);
+  }
+
+  removeTrail(id) {
+    this.trails[id]?.remove();
+    delete this.trails[id];
+  }
+
   // Which model, as when live (see AISVesselsManager.modelFor)
   modelFor(id) {
     if (id.startsWith('PATI-')) return PatiEntity;
@@ -148,12 +190,16 @@ class HistoryManager {
       const at = this.sample(id, this.time);
       this.present[id] = !!at;
       if (this.platforms?.[id]?.kind === 'buoy') {
-        if (at) this.buoyOffset.set(at.x, 0, at.z);
+        if (at) {
+          this.buoyOffset.set(at.x, 0, at.z);
+          this.updateTrail(id, at, this.buoyOffset, camera, 2);
+        } else this.removeTrail(id);
         return;
       }
       let vessel = this.vessels[id];
       if (!at) {
         if (vessel) this.remove(id);
+        this.removeTrail(id);
         return;
       }
       if (!vessel) {
@@ -174,6 +220,7 @@ class HistoryManager {
       if (at.heading != undefined) vessel.heading = at.heading;
       vessel.update(dt, ocean, windFrom);
       vessel.ownMarker.update(vessel.root, camera, vessel.length);
+      this.updateTrail(id, at, vessel.root.position, camera, vessel.length);
     });
   }
 
@@ -188,6 +235,7 @@ class HistoryManager {
   // Out of the history mode: its vessels out of the scene, the buoy back
   clear() {
     Object.keys(this.vessels).forEach(id => this.remove(id));
+    Object.keys(this.trails).forEach(id => this.removeTrail(id));
     this.buoyOffset.set(0, 0, 0);
     this.time = undefined;
     this.present = {};
