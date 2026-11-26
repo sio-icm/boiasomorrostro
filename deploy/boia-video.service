@@ -1,0 +1,18 @@
+# systemd service for video_recorder.py (the 3D view as a video, see video/index.html). Copy to
+# /etc/systemd/system/ and adjust User and the paths
+[Unit]
+Description=Boia Somorrostro: a video of the 3D view every minute, for slow screens
+After=network-online.target boiasomorrostro.service
+Wants=network-online.target
+
+[Service]
+User=boia
+WorkingDirectory=/opt/boiasomorrostro
+ExecStart=/opt/boiasomorrostro/venv/bin/python video_recorder.py
+Restart=always
+RestartSec=30
+# Software rendering: low priority, so the rest of the server comes first
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

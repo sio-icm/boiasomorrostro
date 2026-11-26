@@ -10,6 +10,7 @@ SSH con la VPN del CMIMA). Allí todo va con nginx, sin túnel:
 | La web | `/var/www/boiasomorrostro` (la raíz `/` redirige a `/boiasomorrostro/`) |
 | `boia_server.py` | `/opt/boiasomorrostro`, con su `.env` y un `venv` (`websockets` ≥ 10, `psycopg`), servicio `boiasomorrostro` |
 | Base de datos | PostgreSQL + PostGIS en Docker, contenedor `boia-db` (ver «Base de datos») |
+| Vídeo para pantallas lentas | `/video` → `/boiasomorrostro/video/`; `video_recorder.py`, servicio `boia-video` (ver «Vídeo para pantallas lentas») |
 | Intranet | `/boiasomorrostro/intranet/`, con usuario y contraseña (ver «Histórico del AIS de la boya e intranet») |
 | nginx | `/etc/nginx/conf.d/boiasomorrostro.conf`, copia en [`nginx-boiasomorrostro.conf`](nginx-boiasomorrostro.conf) |
 | HTTPS | certificado de Let's Encrypt (`certbot`, nombre `iot.cmima.csic.es`) |
@@ -182,6 +183,30 @@ de la boya, para enseñar la web aunque no haya nada nuestro en el agua: `bluebo
 por comas) o `1` para los dos. En el servidor está `SIMULATED_BOATS=blueboat`. En la web salen como
 «Simulado». No abre la entrada de posiciones a nadie (eso es `PATI_SIMULATOR`, que en el servidor
 sigue apagado). Para quitarlos, vaciarla y reiniciar el servicio.
+
+### Vídeo para pantallas lentas
+
+Para enseñar la web en una pantalla cuyo ordenador no puede con la vista 3D (la tele de la recepción
+de un instituto, por ejemplo): **https://iot.icm.csic.es/video** reproduce en bucle, a pantalla
+completa, un vídeo de unos 10 s de la vista 3D de ahora, y cambia solo al siguiente, sin recargar.
+
+Lo hace `video_recorder.py`, servicio `boia-video` ([`boia-video.service`](boia-video.service)): un
+Chrome sin pantalla tiene la web abierta (con el panel de datos escondido) y cada minuto la filma.
+Como el servidor no tiene tarjeta gráfica y dibuja pocas imágenes por segundo, el reloj de la
+animación se avanza a mano imagen a imagen: el vídeo sale fluido (25 imágenes por segundo), pero
+hacerlo tarda más de 10 s; si tarda más de un minuto, el siguiente empieza en cuanto acaba el
+anterior. Entre vídeo y vídeo la página no dibuja. `ffmpeg` lo pasa a MP4 (H.264), en
+`/opt/boiasomorrostro/video/latest.mp4` (y su primera imagen, `latest.jpg`), que nginx sirve.
+
+Necesita Google Chrome (o Chromium) y `ffmpeg` instalados. Se ajusta en el `.env`: `VIDEO_SECONDS`,
+`VIDEO_EVERY` (segundos, 60), `VIDEO_WIDTH` y `VIDEO_HEIGHT` (1280 × 720), `VIDEO_FPS` (25) y
+`VIDEO_PAGE_URL` (la página que filma). Para pararlo: `sudo systemctl disable --now boia-video`.
+
+Si cambia `video_recorder.py`:
+
+```bash
+rsync -az video_recorder.py bardaji@iot.icm.csic.es:/opt/boiasomorrostro/ && ssh bardaji@iot.icm.csic.es sudo systemctl restart boia-video
+```
 
 ## En otro servidor
 
