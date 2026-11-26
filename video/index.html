@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<!-- The 3D view as a video, for screens too slow to run the app (a TV at a reception, for
+     instance): the last few seconds filmed on the server (video_recorder.py), over and over, full
+     screen, changed for the new one when there is one, without reloading. Plain, old JavaScript,
+     for old browsers -->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boia Somorrostro · vídeo</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+    video { position: absolute; inset: 0; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+    video.waiting { visibility: hidden; }
+  </style>
+</head>
+<body>
+  <video id="a" autoplay muted loop playsinline poster="latest.jpg"></video>
+  <video id="b" class="waiting" muted loop playsinline></video>
+  <script>
+    var CHECK_SECONDS = 20;
+    var shown = document.getElementById('a'), next = document.getElementById('b');
+    var version = '';
+
+    // The new video, loaded behind the one shown and swapped in once it can play
+    function load(stamp) {
+      next.oncanplay = function () {
+        next.oncanplay = null;
+        next.play();
+        next.className = '';
+        shown.className = 'waiting';
+        shown.pause();
+        var old = shown; shown = next; next = old;
+      };
+      next.src = 'latest.mp4?v=' + encodeURIComponent(stamp);
+      next.load();
+    }
+
+    // Whether there is a new one (its date, without downloading it)
+    function check() {
+      var request = new XMLHttpRequest();
+      request.open('HEAD', 'latest.mp4?check=' + Date.now());
+      request.onload = function () {
+        var stamp = request.getResponseHeader('Last-Modified') || request.getResponseHeader('ETag') || '';
+        if (request.status == 200 && stamp && stamp != version) {
+          version = stamp;
+          if (!shown.getAttribute('src')) {
+            shown.src = 'latest.mp4?v=' + encodeURIComponent(stamp);
+            shown.play();
+          } else load(stamp);
+        }
+      };
+      request.send();
+    }
+
+    check();
+    setInterval(check, CHECK_SECONDS * 1000);
+    // Once a day, the page itself again (in case it changed)
+    setTimeout(function () { location.reload(); }, 24 * 3600 * 1000);
+  </script>
+</body>
+</html>
