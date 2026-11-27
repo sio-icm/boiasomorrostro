@@ -1,4 +1,4 @@
-"""A short video of the 3D view, made again every minute, for screens too slow to run the app
+"""A short video of the 3D view, made again every quarter of an hour, for screens too slow to run the app
 itself (a TV at a school's reception, for instance): played by video/index.html.
 
 A headless Chrome keeps the app open. The server has no graphics card, so it draws a few images
@@ -13,9 +13,10 @@ Settings, in the environment or .env (see read_env):
     VIDEO_PAGE_URL   the page filmed (the app with its data panel hidden)
     VIDEO_DIR        where latest.mp4 and latest.jpg (its first frame) are written
     VIDEO_SECONDS    length of each video (10)
-    VIDEO_EVERY      seconds from the start of one to the next (60), or as soon as possible if
+    VIDEO_EVERY      seconds from the start of one to the next (900), or as soon as possible if
                      making it takes longer
     VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS   1280 x 720, 25
+    VIDEO_LANGUAGE   the app's language (es-ES)
     CHROME, FFMPEG   the programs, if not found by those names
 Needs Chrome or Chromium, ffmpeg and websockets.
 """
@@ -52,13 +53,15 @@ def read_env(name, default=None):
 PAGE_URL = read_env('VIDEO_PAGE_URL', 'https://iot.icm.csic.es/boiasomorrostro/#PANEL=hidden')
 OUT_DIR = read_env('VIDEO_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'video'))
 SECONDS = float(read_env('VIDEO_SECONDS', 10))
-EVERY = float(read_env('VIDEO_EVERY', 60))
+EVERY = float(read_env('VIDEO_EVERY', 900))
 WIDTH, HEIGHT = int(read_env('VIDEO_WIDTH', 1280)), int(read_env('VIDEO_HEIGHT', 720))
 FPS = int(read_env('VIDEO_FPS', 25))
 CHROME = read_env('CHROME') or next((c for c in ('google-chrome', 'chromium', 'chromium-browser') if shutil.which(c)), 'google-chrome')
 FFMPEG = read_env('FFMPEG', 'ffmpeg')
+LANGUAGE = read_env('VIDEO_LANGUAGE', 'es-ES')
 PORT = 9333
-LOAD_SECONDS = 40  # Given to the app to load (models, data) before the first video
+LOAD_SECONDS = 300  # At most, for the app to load (its 3D view running), and then some more
+SETTLE_SECONDS = 30
 RELOAD_HOURS = 6  # The browser started again this often, so it does not grow
 
 
@@ -97,7 +100,7 @@ class Browser:
             [CHROME, '--headless=new', f'--remote-debugging-port={PORT}', f'--user-data-dir={self.profile}',
              '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
              f'--window-size={WIDTH},{HEIGHT}', '--hide-scrollbars', '--mute-audio', '--no-first-run',
-             '--no-default-browser-check', '--disable-background-timer-throttling',
+             '--no-default-browser-check', f'--lang={LANGUAGE}', f'--accept-lang={LANGUAGE}', '--disable-background-timer-throttling',
              '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', 'about:blank'],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for _ in range(50):
@@ -114,9 +117,19 @@ class Browser:
         self.next_id = 0
         await self.call('Page.enable')
         await self.call('Emulation.setDeviceMetricsOverride', width=WIDTH, height=HEIGHT, deviceScaleFactor=1, mobile=False)
+        await self.call('Emulation.setLocaleOverride', locale=LANGUAGE)
         await self.call('Page.addScriptToEvaluateOnNewDocument', source=CLOCK)
         await self.call('Page.navigate', url=PAGE_URL)
         self.started = time.time()
+
+    async def loaded(self):
+        """Once the app's 3D view runs (see SceneManager), and some more for its models and data"""
+        for _ in range(LOAD_SECONDS // 5):
+            await asyncio.sleep(5)
+            if await self.evaluate('!!(window.sceneManager && document.readyState == "complete")'):
+                await asyncio.sleep(SETTLE_SECONDS)
+                return
+        raise RuntimeError('the app did not load')
 
     async def call(self, method, **params):
         self.next_id += 1
@@ -178,7 +191,7 @@ async def main():
                     await browser.stop()
                 browser = Browser()
                 await browser.start()
-                await asyncio.sleep(LOAD_SECONDS)
+                await browser.loaded()
             began = time.time()
             await record(browser)
             print(f'✅ Video made in {time.time() - began:.0f} s', flush=True)

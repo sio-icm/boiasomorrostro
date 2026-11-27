@@ -188,18 +188,20 @@ sigue apagado). Para quitarlos, vaciarla y reiniciar el servicio.
 
 Para enseñar la web en una pantalla cuyo ordenador no puede con la vista 3D (la tele de la recepción
 de un instituto, por ejemplo): **https://iot.icm.csic.es/video** reproduce en bucle, a pantalla
-completa, un vídeo de unos 10 s de la vista 3D de ahora, y cambia solo al siguiente, sin recargar.
+completa, un vídeo de unos 10 s de la vista 3D de hace menos de un cuarto de hora, y cambia solo al siguiente, sin recargar.
 
 Lo hace `video_recorder.py`, servicio `boia-video` ([`boia-video.service`](boia-video.service)): un
-Chrome sin pantalla tiene la web abierta (con el panel de datos escondido) y cada minuto la filma.
+Chrome sin pantalla tiene la web abierta (con el panel de datos escondido) y cada cuarto de hora
+la filma.
 Como el servidor no tiene tarjeta gráfica y dibuja pocas imágenes por segundo, el reloj de la
 animación se avanza a mano imagen a imagen: el vídeo sale fluido (25 imágenes por segundo), pero
-hacerlo tarda más de 10 s; si tarda más de un minuto, el siguiente empieza en cuanto acaba el
-anterior. Entre vídeo y vídeo la página no dibuja. `ffmpeg` lo pasa a MP4 (H.264), en
+hacerlo tarda mucho más de 10 s. En iot (2 procesadores) cada imagen tarda unos 3 s, unos 12 min
+el vídeo: por eso uno cada 15 min, con prioridad baja y como mucho 1,5 procesadores. Si tarda más
+que `VIDEO_EVERY`, el siguiente empieza en cuanto acaba el anterior. Entre vídeo y vídeo la página no dibuja. `ffmpeg` lo pasa a MP4 (H.264), en
 `/opt/boiasomorrostro/video/latest.mp4` (y su primera imagen, `latest.jpg`), que nginx sirve.
 
 Necesita Google Chrome (o Chromium) y `ffmpeg` instalados. Se ajusta en el `.env`: `VIDEO_SECONDS`,
-`VIDEO_EVERY` (segundos, 60), `VIDEO_WIDTH` y `VIDEO_HEIGHT` (1280 × 720), `VIDEO_FPS` (25) y
+`VIDEO_EVERY` (segundos, 900), `VIDEO_WIDTH` y `VIDEO_HEIGHT` (1280 × 720), `VIDEO_FPS` (25) y
 `VIDEO_PAGE_URL` (la página que filma). Para pararlo: `sudo systemctl disable --now boia-video`.
 
 Si cambia `video_recorder.py`:
